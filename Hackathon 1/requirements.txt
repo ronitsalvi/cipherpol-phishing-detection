@@ -1,0 +1,24 @@
+# Core libraries for the phishing detection system
+streamlit
+pandas>=1.5.0
+numpy>=1.20.0
+requests>=2.25.0
+beautifulsoup4>=4.10.0
+dnspython>=2.0.0
+urllib3>=1.26.0
+scikit-learn>=1.0.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# For content analysis
+textstat>=0.7.0
+pyspellchecker
+langdetect
+
+# For SSL/TLS analysis  
+cryptography>=3.0.0
+python-whois>=0.7.0
+
+# For progress tracking and utilities
+tqdm>=4.60.0
+python-dateutil>=2.8.0

@@ -1,0 +1,338 @@
+{
+  "timestamp": "2025-08-30 13:24:34",
+  "basic_connectivity": {
+    "internet": {
+      "status": "SUCCESS",
+      "message": "Internet connectivity available"
+    },
+    "dns_basic": {
+      "status": "SUCCESS",
+      "message": "DNS resolution working"
+    }
+  },
+  "dns_resolution": {
+    "8.8.8.8": {
+      "github.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "20.207.73.82"
+        ],
+        "duration": 0.019,
+        "message": "Resolved to 1 IPs in 0.019s"
+      },
+      "google.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "142.251.42.238"
+        ],
+        "duration": 0.007,
+        "message": "Resolved to 1 IPs in 0.007s"
+      },
+      "instagram.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "57.144.176.34"
+        ],
+        "duration": 0.013,
+        "message": "Resolved to 1 IPs in 0.013s"
+      },
+      "httpbin.org": {
+        "status": "SUCCESS",
+        "ips": [
+          "54.224.121.164",
+          "44.195.242.49",
+          "3.218.36.123",
+          "44.216.178.93"
+        ],
+        "duration": 0.014,
+        "message": "Resolved to 4 IPs in 0.014s"
+      }
+    },
+    "1.1.1.1": {
+      "github.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "20.207.73.82"
+        ],
+        "duration": 0.011,
+        "message": "Resolved to 1 IPs in 0.011s"
+      },
+      "google.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "142.251.42.238"
+        ],
+        "duration": 0.009,
+        "message": "Resolved to 1 IPs in 0.009s"
+      },
+      "instagram.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "163.70.143.174"
+        ],
+        "duration": 0.009,
+        "message": "Resolved to 1 IPs in 0.009s"
+      },
+      "httpbin.org": {
+        "status": "SUCCESS",
+        "ips": [
+          "44.216.178.93",
+          "54.224.121.164",
+          "44.195.242.49",
+          "3.218.36.123"
+        ],
+        "duration": 0.01,
+        "message": "Resolved to 4 IPs in 0.010s"
+      }
+    },
+    "208.67.222.222": {
+      "github.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "20.207.73.82"
+        ],
+        "duration": 0.012,
+        "message": "Resolved to 1 IPs in 0.012s"
+      },
+      "google.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "142.250.192.78"
+        ],
+        "duration": 0.089,
+        "message": "Resolved to 1 IPs in 0.089s"
+      },
+      "instagram.com": {
+        "status": "SUCCESS",
+        "ips": [
+          "57.144.176.34"
+        ],
+        "duration": 0.05,
+        "message": "Resolved to 1 IPs in 0.050s"
+      },
+      "httpbin.org": {
+        "status": "SUCCESS",
+        "ips": [
+          "44.216.178.93",
+          "54.224.121.164",
+          "3.218.36.123",
+          "44.195.242.49"
+        ],
+        "duration": 0.017,
+        "message": "Resolved to 4 IPs in 0.017s"
+      }
+    }
+  },
+  "http_connectivity": {
+    "default": {
+      "https://github.com/new": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.698,
+        "content_length": 43408,
+        "message": "200 in 0.698s (43408 bytes)"
+      },
+      "https://www.google.com": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.575,
+        "content_length": 19590,
+        "message": "200 in 0.575s (19590 bytes)"
+      },
+      "https://www.instagram.com": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.361,
+        "content_length": 414836,
+        "message": "200 in 0.361s (414836 bytes)"
+      },
+      "https://httpbin.org/html": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 1.068,
+        "content_length": 3741,
+        "message": "200 in 1.068s (3741 bytes)"
+      }
+    },
+    "long_timeout": {
+      "https://github.com/new": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.109,
+        "content_length": 43403,
+        "message": "200 in 0.109s (43403 bytes)"
+      },
+      "https://www.google.com": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.891,
+        "content_length": 19143,
+        "message": "200 in 0.891s (19143 bytes)"
+      },
+      "https://www.instagram.com": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.37,
+        "content_length": 414702,
+        "message": "200 in 0.370s (414702 bytes)"
+      },
+      "https://httpbin.org/html": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 1.186,
+        "content_length": 3741,
+        "message": "200 in 1.186s (3741 bytes)"
+      }
+    },
+    "with_headers": {
+      "https://github.com/new": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.602,
+        "content_length": 43403,
+        "message": "200 in 0.602s (43403 bytes)"
+      },
+      "https://www.google.com": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.217,
+        "content_length": 56321,
+        "message": "200 in 0.217s (56321 bytes)"
+      },
+      "https://www.instagram.com": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 0.352,
+        "content_length": 414745,
+        "message": "200 in 0.352s (414745 bytes)"
+      },
+      "https://httpbin.org/html": {
+        "status": "SUCCESS",
+        "status_code": 200,
+        "duration": 3.514,
+        "content_length": 3741,
+        "message": "200 in 3.514s (3741 bytes)"
+      }
+    }
+  },
+  "ssl_connectivity": {
+    "github.com": {
+      "status": "SUCCESS",
+      "duration": 0.06,
+      "cipher": "ECDHE-ECDSA-CHACHA20-POLY1305",
+      "tls_version": "TLSv1/SSLv3",
+      "cert_subject": {
+        "commonName": "github.com"
+      },
+      "cert_issuer": {
+        "countryName": "GB",
+        "stateOrProvinceName": "Greater Manchester",
+        "localityName": "Salford",
+        "organizationName": "Sectigo Limited",
+        "commonName": "Sectigo ECC Domain Validation Secure Server CA"
+      },
+      "message": "SSL connected in 0.060s"
+    },
+    "google.com": {
+      "status": "SUCCESS",
+      "duration": 0.035,
+      "cipher": "ECDHE-ECDSA-CHACHA20-POLY1305",
+      "tls_version": "TLSv1/SSLv3",
+      "cert_subject": {
+        "commonName": "*.google.com"
+      },
+      "cert_issuer": {
+        "countryName": "US",
+        "organizationName": "Google Trust Services",
+        "commonName": "WR2"
+      },
+      "message": "SSL connected in 0.035s"
+    },
+    "instagram.com": {
+      "status": "SUCCESS",
+      "duration": 0.044,
+      "cipher": "ECDHE-ECDSA-AES128-GCM-SHA256",
+      "tls_version": "TLSv1/SSLv3",
+      "cert_subject": {
+        "countryName": "US",
+        "stateOrProvinceName": "California",
+        "localityName": "Menlo Park",
+        "organizationName": "Meta Platforms, Inc.",
+        "commonName": "*.instagram.com"
+      },
+      "cert_issuer": {
+        "countryName": "US",
+        "organizationName": "DigiCert Inc",
+        "organizationalUnitName": "www.digicert.com",
+        "commonName": "DigiCert SHA2 High Assurance Server CA"
+      },
+      "message": "SSL connected in 0.044s"
+    },
+    "httpbin.org": {
+      "status": "SUCCESS",
+      "duration": 0.691,
+      "cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+      "tls_version": "TLSv1/SSLv3",
+      "cert_subject": {
+        "commonName": "httpbin.org"
+      },
+      "cert_issuer": {
+        "countryName": "US",
+        "organizationName": "Amazon",
+        "commonName": "Amazon RSA 2048 M03"
+      },
+      "message": "SSL connected in 0.691s"
+    }
+  },
+  "whois_connectivity": {
+    "github.com": {
+      "status": "SUCCESS",
+      "duration": 2.182,
+      "creation_date": "2007-10-09 18:20:50",
+      "registrar": "MarkMonitor, Inc.",
+      "message": "WHOIS data retrieved in 2.182s"
+    },
+    "google.com": {
+      "status": "SUCCESS",
+      "duration": 1.506,
+      "creation_date": "1997-09-15 04:00:00",
+      "registrar": "MarkMonitor, Inc.",
+      "message": "WHOIS data retrieved in 1.506s"
+    },
+    "instagram.com": {
+      "status": "SUCCESS",
+      "duration": 1.397,
+      "creation_date": "2004-06-04 13:37:18",
+      "registrar": "RegistrarSafe, LLC",
+      "message": "WHOIS data retrieved in 1.397s"
+    },
+    "httpbin.org": {
+      "status": "SUCCESS",
+      "duration": 2.159,
+      "creation_date": "2011-06-12 21:57:10",
+      "registrar": "Amazon Registrar, Inc.",
+      "message": "WHOIS data retrieved in 2.159s"
+    }
+  },
+  "system_info": {
+    "python_version": "3.8.9 (default, Apr 13 2022, 08:48:06) \n[Clang 13.1.6 (clang-1316.0.21.2.5)]",
+    "platform": "darwin",
+    "dns_config": "#\n# macOS Notice\n#\n# This file is not consulted for DNS hostname resolution, address\n# resolution, or the DNS query routing mechanism used by most\n# processes on this system.\n#\n# To view the DNS configuration used by this system, use:\n#   scutil --dns\n#\n# SEE ALSO\n#   dns-sd(1), scutil(8)\n#\n# This file is automatically generated.\n#\nnameserver 192.168.0.1",
+    "network_interfaces": [
+      "inet 192.168.0.111 netmask 0xffffff00 broadcast 192.168.0.255"
+    ]
+  },
+  "summary": {
+    "overall_status": "EXCELLENT",
+    "issues_found": [],
+    "working_components": [
+      "Internet connectivity",
+      "Basic DNS resolution",
+      "3/3 DNS servers working",
+      "HTTP connectivity working",
+      "SSL working for 4/4 domains",
+      "WHOIS working for 4/4 domains"
+    ],
+    "recommendations": []
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "domain_analyzer": {
+    "https://github.com/new": {
+      "status": "SUCCESS",
+      "score": 23,
+      "explanations_count": 4,
+      "duration": 2.353034019470215
+    },
+    "https://www.google.com": {
+      "status": "SUCCESS",
+      "score": 15,
+      "explanations_count": 6,
+      "duration": 1.6109321117401123
+    },
+    "https://www.instagram.com": {
+      "status": "SUCCESS",
+      "score": 15,
+      "explanations_count": 6,
+      "duration": 1.5472948551177979
+    },
+    "https://httpbin.org/html": {
+      "status": "SUCCESS",
+      "score": 20,
+      "explanations_count": 4,
+      "duration": 2.8415210247039795
+    }
+  },
+  "content_analyzer": {
+    "https://github.com/new": {
+      "status": "SUCCESS",
+      "score": 5,
+      "explanations_count": 5,
+      "duration": 0.8439788818359375
+    },
+    "https://www.google.com": {
+      "status": "SUCCESS",
+      "score": -10,
+      "explanations_count": 5,
+      "duration": 0.33827686309814453
+    },
+    "https://www.instagram.com": {
+      "status": "SUCCESS",
+      "score": -9,
+      "explanations_count": 7,
+      "duration": 0.4562418460845947
+    },
+    "https://httpbin.org/html": {
+      "status": "SUCCESS",
+      "score": -10,
+      "explanations_count": 6,
+      "duration": 1.928955078125
+    }
+  },
+  "technical_analyzer": {
+    "https://github.com/new": {
+      "status": "SUCCESS",
+      "score": 19,
+      "explanations_count": 7,
+      "duration": 5.599886178970337
+    },
+    "https://www.google.com": {
+      "status": "SUCCESS",
+      "score": 14,
+      "explanations_count": 7,
+      "duration": 0.5150132179260254
+    },
+    "https://www.instagram.com": {
+      "status": "SUCCESS",
+      "score": 13,
+      "explanations_count": 7,
+      "duration": 0.35376501083374023
+    },
+    "https://httpbin.org/html": {
+      "status": "SUCCESS",
+      "score": 7,
+      "explanations_count": 12,
+      "duration": 2.295396089553833
+    }
+  }
+}
