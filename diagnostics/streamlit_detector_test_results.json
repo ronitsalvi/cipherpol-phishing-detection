@@ -1,0 +1,220 @@
+{
+  "cached_loading": {
+    "status": "SUCCESS"
+  },
+  "problem_url_test": {
+    "status": "SUCCESS",
+    "url": "https://github.com/new",
+    "trust_score": 84,
+    "risk_level": "LOW",
+    "confidence": 86,
+    "component_scores": {
+      "domain": 93,
+      "content": 75,
+      "technical": 89
+    },
+    "analysis_time": 8.885121822357178,
+    "full_result": {
+      "url": "https://github.com/new",
+      "trust_score": 84,
+      "risk_level": "LOW",
+      "confidence": 86,
+      "explanations": {
+        "negative_signals": [
+          {
+            "type": "negative",
+            "description": "Poor spelling quality (10 errors in sample)",
+            "points": 6,
+            "evidence": "Misspelled words found: 10/100",
+            "module": "Content Analysis"
+          }
+        ],
+        "positive_signals": [
+          {
+            "type": "positive",
+            "description": "Well-established domain (17 years old)",
+            "points": 10,
+            "evidence": "Created: 2007-10-09",
+            "module": "Domain Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Valid SSL certificate installed",
+            "points": 8,
+            "evidence": "Certificate verified for github.com",
+            "module": "Technical Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Uses trusted TLD (.com)",
+            "points": 5,
+            "evidence": "TLD: .com",
+            "module": "Domain Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Valid SSL certificate present",
+            "points": 5,
+            "evidence": "Issued to: ((('commonName', 'github.com'),),)",
+            "module": "Domain Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Page has proper structure (header, nav, footer)",
+            "points": 5,
+            "evidence": "2/3 structural elements present",
+            "module": "Content Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Strong security headers present (4/4)",
+            "points": 4,
+            "evidence": "Headers: HSTS header, CSP header, X-Frame-Options header, X-Content-Type-Options header",
+            "module": "Technical Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Complete DNS record set (A and MX records)",
+            "points": 3,
+            "evidence": "DNS records properly configured",
+            "module": "Domain Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "No suspicious keywords detected",
+            "points": 3,
+            "evidence": "Clean content language",
+            "module": "Content Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Page contains contact and policy information",
+            "points": 3,
+            "evidence": "4/8 contact indicators found",
+            "module": "Content Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Certificate from trusted issuer: Sectigo ECC Domain Validation Secure Server CA",
+            "points": 3,
+            "evidence": "Recognized certificate authority",
+            "module": "Technical Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Strong encryption: 256-bit",
+            "points": 2,
+            "evidence": "Key length: 256 bits",
+            "module": "Technical Analysis"
+          },
+          {
+            "type": "positive",
+            "description": "Basic DNS configuration (3/6 record types)",
+            "points": 2,
+            "evidence": "Records present: A, MX, NS",
+            "module": "Technical Analysis"
+          }
+        ],
+        "neutral_signals": [
+          {
+            "type": "neutral",
+            "description": "Login forms detected (1 forms)",
+            "evidence": "Forms properly secured with HTTPS",
+            "module": "Content Analysis"
+          },
+          {
+            "type": "neutral",
+            "description": "IP address: 20.207.73.82",
+            "evidence": "Geographic analysis requires external database",
+            "module": "Technical Analysis"
+          },
+          {
+            "type": "neutral",
+            "description": "Hosted on IP: 20.207.73.82",
+            "evidence": "Hosting provider analysis requires external database",
+            "module": "Technical Analysis"
+          }
+        ],
+        "summary": {
+          "total_negative_points": 6,
+          "total_positive_points": 53,
+          "top_concerns": [
+            {
+              "type": "negative",
+              "description": "Poor spelling quality (10 errors in sample)",
+              "points": 6,
+              "evidence": "Misspelled words found: 10/100",
+              "module": "Content Analysis"
+            }
+          ],
+          "top_positives": [
+            {
+              "type": "positive",
+              "description": "Well-established domain (17 years old)",
+              "points": 10,
+              "evidence": "Created: 2007-10-09",
+              "module": "Domain Analysis"
+            },
+            {
+              "type": "positive",
+              "description": "Valid SSL certificate installed",
+              "points": 8,
+              "evidence": "Certificate verified for github.com",
+              "module": "Technical Analysis"
+            },
+            {
+              "type": "positive",
+              "description": "Uses trusted TLD (.com)",
+              "points": 5,
+              "evidence": "TLD: .com",
+              "module": "Domain Analysis"
+            }
+          ],
+          "most_problematic_category": "Content Analysis",
+          "category_breakdown": {
+            "Domain Analysis": 0,
+            "Content Analysis": 1,
+            "Technical Analysis": 0
+          }
+        }
+      },
+      "component_scores": {
+        "domain": 93,
+        "content": 75,
+        "technical": 89
+      },
+      "weights_used": {
+        "domain": 0.35,
+        "content": 0.4,
+        "technical": 0.25
+      },
+      "analysis_status": {
+        "successful_modules": 3,
+        "total_modules": 3,
+        "partial_analysis": false
+      },
+      "analysis_time": 8.885103940963745,
+      "successful_analyses": "3/3"
+    }
+  },
+  "comparison_test": {
+    "https://github.com/new": {
+      "status": "SUCCESS",
+      "trust_score": 84,
+      "risk_level": "LOW",
+      "duration": 7.652942895889282
+    },
+    "https://www.google.com": {
+      "status": "SUCCESS",
+      "trust_score": 74,
+      "risk_level": "LOW",
+      "duration": 2.884650945663452
+    },
+    "https://www.instagram.com": {
+      "status": "SUCCESS",
+      "trust_score": 74,
+      "risk_level": "LOW",
+      "duration": 2.1536800861358643
+    }
+  }
+}
