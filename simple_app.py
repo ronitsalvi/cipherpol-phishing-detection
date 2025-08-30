@@ -222,6 +222,33 @@ def display_results(result, analysis_time, detector):
             else:
                 st.markdown(f"- **{signal['description']}** *[{module}]*")
     
+    # Security considerations/warnings (new warning signals)
+    warnings = explanations.get('warnings', [])
+    if warnings:
+        st.markdown("#### ⚠️ Security Considerations:")
+        st.markdown("*The following are informational flags that do not affect the trust score but may require attention:*")
+        
+        for warning in warnings:
+            category = warning.get('category', 'general')
+            description = warning.get('description', 'Warning detected')
+            evidence = warning.get('evidence', '')
+            module = warning.get('module', 'Unknown')
+            recommendation = warning.get('recommendation', '')
+            
+            # Display warning with appropriate icon
+            if category == 'url_shortener':
+                icon = "🔗"
+            elif category == 'obfuscated_code':
+                icon = "🔒"
+            else:
+                icon = "⚠️"
+                
+            st.markdown(f"{icon} **{description}** *[{module}]*")
+            if evidence:
+                st.markdown(f"   *Evidence: {evidence}*")
+            if recommendation:
+                st.markdown(f"   *Note: {recommendation}*")
+    
     # Show neutral signals (errors/warnings)
     if explanations.get('neutral_signals'):
         with st.expander("ℹ️ Analysis Notes"):

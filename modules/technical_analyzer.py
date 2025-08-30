@@ -84,12 +84,12 @@ class TechnicalAnalyzer:
                     cert = ssock.getpeercert()
                     cipher = ssock.cipher()
                     
-                    # Certificate is present and valid
-                    points = 8
+                    # Certificate is present and valid (reduced bonus)
+                    points = 3
                     results['score'] += points
                     results['explanations'].append({
                         'type': 'positive',
-                        'description': 'Valid SSL certificate installed',
+                        'description': 'SSL certificate installed',
                         'points': points,
                         'evidence': f'Certificate verified for {domain}'
                     })

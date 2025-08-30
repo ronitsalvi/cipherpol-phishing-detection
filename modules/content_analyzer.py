@@ -73,7 +73,8 @@ class ContentAnalyzer:
             results = {
                 'url': url,
                 'score': 0,
-                'explanations': []
+                'explanations': [],
+                'warnings': []  # Add warnings for informational flags
             }
             
             # Extract text content
@@ -86,6 +87,8 @@ class ContentAnalyzer:
             self._analyze_content_quality(page_text, results)
             self._analyze_brand_impersonation(page_text, soup, results)
             self._analyze_page_structure(soup, results)
+            self._check_url_shortener(url, results)  # Check if main domain is a shortener
+            self._check_obfuscated_scripts(soup, results)  # Check for obfuscated JavaScript
             
             return results
             
@@ -277,8 +280,10 @@ class ContentAnalyzer:
                     if 'redirect' in href.lower() or 'r?url=' in href.lower():
                         redirect_links += 1
                     
-                    # Check for URL shorteners (suspicious in phishing)
-                    shorteners = ['bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly']
+                    # Check for URL shorteners (informational flag)
+                    shorteners = ['bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 
+                                 'rebrand.ly', 'short.link', 'cutt.ly', 'is.gd', 'v.gd', 
+                                 'tr.im', 'tiny.cc', 'shorturl.at', '1drv.ms', 'amzn.to']
                     if any(shortener in parsed_link.netloc for shortener in shorteners):
                         suspicious_links += 1
         
@@ -463,6 +468,85 @@ class ContentAnalyzer:
                 'points': abs(points),
                 'evidence': 'No contact/policy information found'
             })
+    
+    def _check_url_shortener(self, url: str, results: Dict):
+        """Check if the main domain is a URL shortener (informational warning)"""
+        
+        try:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc.lower()
+            
+            # Comprehensive URL shortener list
+            shortener_services = [
+                'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly',
+                'rebrand.ly', 'short.link', 'cutt.ly', 'is.gd', 'v.gd',
+                'tr.im', 'tiny.cc', 'shorturl.at', '1drv.ms', 'amzn.to',
+                'buff.ly', 'ift.tt', 'soo.gd', 'x.co', 'ur1.ca'
+            ]
+            
+            # Check if main domain is a shortener
+            for shortener in shortener_services:
+                if shortener in domain:
+                    results['warnings'].append({
+                        'type': 'warning',
+                        'category': 'url_shortener',
+                        'description': 'URL Shortener Detected - Destination Hidden',
+                        'evidence': f'Service: {shortener}',
+                        'module': 'Content Analysis',
+                        'recommendation': 'Final destination is hidden behind URL shortener'
+                    })
+                    break
+                    
+        except Exception as e:
+            logger.debug(f"URL shortener check failed: {e}")
+    
+    def _check_obfuscated_scripts(self, soup: BeautifulSoup, results: Dict):
+        """Check for obfuscated JavaScript (informational warning)"""
+        
+        try:
+            script_tags = soup.find_all('script')
+            
+            for script in script_tags:
+                script_content = script.get_text() if script.get_text() else ""
+                script_src = script.get('src', '')
+                
+                # Skip known legitimate scripts
+                legitimate_patterns = [
+                    'google-analytics', 'gtag', 'facebook.net', 'twitter.com',
+                    'jsdelivr.net', 'cdnjs.cloudflare.com', 'unpkg.com',
+                    'jquery', 'bootstrap', 'fontawesome'
+                ]
+                
+                is_legitimate = any(pattern in script_src.lower() for pattern in legitimate_patterns)
+                if is_legitimate:
+                    continue
+                
+                # Check for obfuscation patterns
+                obfuscation_patterns = [
+                    (len(script_content) > 1000 and script_content.count('eval(') > 0, 'eval() usage in large script'),
+                    (script_content.count('\\x') > 10, 'excessive hex encoding'),
+                    (script_content.count('\\u') > 10, 'excessive unicode encoding'),
+                    (script_content.count('String.fromCharCode') > 0, 'character code obfuscation'),
+                    (len(script_content) > 500 and len(script_content.split()) < 10, 'heavily minified without whitespace'),
+                    (script_content.count('unescape(') > 0, 'unescape obfuscation'),
+                    (script_content.count('atob(') > 2, 'base64 decoding patterns')
+                ]
+                
+                for condition, description in obfuscation_patterns:
+                    if condition:
+                        results['warnings'].append({
+                            'type': 'warning',
+                            'category': 'obfuscated_code',
+                            'description': 'Obfuscated JavaScript Detected',
+                            'evidence': description,
+                            'module': 'Content Analysis',
+                            'recommendation': 'Review page behavior carefully - code purpose unclear'
+                        })
+                        break  # Only flag once per script
+                        
+        except Exception as e:
+            logger.debug(f"Obfuscated script check failed: {e}")
 
 if __name__ == "__main__":
     # Test the content analyzer

@@ -367,6 +367,7 @@ class RobustPhishingDetector:
         negative_signals = []
         positive_signals = []
         neutral_signals = []
+        warnings = []  # New: collect warning signals
         
         # Process each result safely
         results = [
@@ -395,6 +396,12 @@ class RobustPhishingDetector:
                         positive_signals.append(exp)
                     else:
                         neutral_signals.append(exp)
+                
+                # Process warning signals if available (from content analyzer)
+                result_warnings = result.get('warnings', [])
+                for warning in result_warnings:
+                    warning['module'] = module_name
+                    warnings.append(warning)
         
         # Sort by points (highest impact first)
         negative_signals.sort(key=lambda x: x.get('points', 0), reverse=True)
@@ -404,6 +411,7 @@ class RobustPhishingDetector:
             'negative_signals': negative_signals,
             'positive_signals': positive_signals,
             'neutral_signals': neutral_signals,
+            'warnings': warnings,  # New: include warning signals
             'summary': self._generate_explanation_summary_robust(negative_signals, positive_signals)
         }
     

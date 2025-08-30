@@ -323,12 +323,12 @@ class DomainAnalyzer:
                 with context.wrap_socket(sock, server_hostname=domain) as ssock:
                     cert = ssock.getpeercert()
                     
-                    # Certificate exists
-                    points = 5
+                    # Certificate exists (minimal bonus - SSL is standard now)
+                    points = 2
                     results['score'] += points
                     results['explanations'].append({
                         'type': 'positive',
-                        'description': 'Valid SSL certificate present',
+                        'description': 'SSL certificate present',
                         'points': points,
                         'evidence': f'Issued to: {cert.get("subject", "Unknown")}'
                     })
