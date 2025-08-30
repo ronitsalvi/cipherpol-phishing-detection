@@ -10,8 +10,11 @@ import re
 import socket
 import ssl
 import datetime
+import math
 from urllib.parse import urlparse
 from typing import Dict, List, Tuple, Optional
+from difflib import SequenceMatcher
+from collections import Counter
 import logging
 import requests
 
@@ -41,6 +44,16 @@ class DomainAnalyzer:
             'com', 'org', 'net', 'edu', 'gov', 'mil', 'int', 'co.uk', 'de',
             'fr', 'it', 'es', 'nl', 'au', 'ca', 'jp', 'kr'
         }
+        
+        # Advanced detection patterns
+        self.ip_pattern = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
+        
+        # Major brands for typosquatting detection
+        self.major_brands = {
+            'google.com', 'facebook.com', 'paypal.com', 'amazon.com', 'microsoft.com',
+            'apple.com', 'netflix.com', 'spotify.com', 'instagram.com', 'twitter.com',
+            'linkedin.com', 'ebay.com', 'chase.com', 'bankofamerica.com', 'wells-fargo.com'
+        }
     
     def analyze_domain(self, url: str) -> Dict:
         """Perform comprehensive domain analysis"""
@@ -66,6 +79,12 @@ class DomainAnalyzer:
             self._analyze_subdomain_patterns(parsed_url, results)
             self._analyze_ssl_certificate(domain, results)
             self._analyze_dns_records(domain, results)
+            
+            # Advanced detection features
+            self._detect_ip_in_domain(domain, results)
+            self._detect_typosquatting(domain, results)
+            self._detect_homograph_attacks(domain, results)
+            self._analyze_domain_entropy(domain, results)
             
             return results
             
@@ -408,6 +427,146 @@ class DomainAnalyzer:
                 
         except Exception as e:
             logger.debug(f"DNS analysis failed for {domain}: {e}")
+    
+    def _detect_ip_in_domain(self, domain: str, results: Dict):
+        """Detect if URL uses IP address instead of domain name"""
+        
+        try:
+            # Remove port if present
+            domain_part = domain.split(':')[0]
+            
+            # Check if domain is an IP address
+            if self.ip_pattern.match(domain_part):
+                points = -20
+                results['score'] += points
+                results['explanations'].append({
+                    'type': 'negative',
+                    'description': f'Uses IP address instead of domain name',
+                    'points': abs(points),
+                    'evidence': f'IP address: {domain_part}'
+                })
+                
+        except Exception as e:
+            logger.debug(f"IP detection failed for {domain}: {e}")
+    
+    def _detect_typosquatting(self, domain: str, results: Dict):
+        """Detect typosquatting attempts against major brands"""
+        
+        try:
+            domain_lower = domain.lower()
+            
+            # Remove common subdomains for analysis
+            if domain_lower.startswith('www.'):
+                domain_lower = domain_lower[4:]
+            
+            # Check similarity against major brands
+            for brand_domain in self.major_brands:
+                ratio = SequenceMatcher(None, domain_lower, brand_domain).ratio()
+                
+                # Sweet spot: similar enough to be suspicious but not identical
+                if 0.85 < ratio < 0.995 and domain_lower != brand_domain:
+                    points = -15
+                    results['score'] += points
+                    results['explanations'].append({
+                        'type': 'negative',
+                        'description': f'Possible typosquatting of {brand_domain}',
+                        'points': abs(points),
+                        'evidence': f'Similarity ratio: {ratio:.3f} to {brand_domain}'
+                    })
+                    break  # Only flag once per domain
+                    
+        except Exception as e:
+            logger.debug(f"Typosquatting detection failed for {domain}: {e}")
+    
+    def _detect_homograph_attacks(self, domain: str, results: Dict):
+        """Detect Unicode homograph attacks"""
+        
+        try:
+            # Check if domain can be encoded as ASCII
+            try:
+                domain.encode('ascii')
+                # If we get here, domain is pure ASCII - no homograph attack
+            except UnicodeEncodeError:
+                # Domain contains non-ASCII characters - potential homograph attack
+                points = -18
+                results['score'] += points
+                
+                # Analyze which characters are suspicious
+                suspicious_chars = []
+                for char in domain:
+                    if ord(char) > 127:  # Non-ASCII character
+                        suspicious_chars.append(f"{char}(U+{ord(char):04X})")
+                
+                results['explanations'].append({
+                    'type': 'negative',
+                    'description': 'Possible homograph attack (Unicode characters)',
+                    'points': abs(points),
+                    'evidence': f'Non-ASCII characters: {", ".join(suspicious_chars[:5])}'
+                })
+                
+        except Exception as e:
+            logger.debug(f"Homograph detection failed for {domain}: {e}")
+    
+    def _analyze_domain_entropy(self, domain: str, results: Dict):
+        """Analyze domain randomness using entropy calculation"""
+        
+        try:
+            # Extract the main domain label (before first dot)
+            domain_parts = domain.split('.')
+            if len(domain_parts) < 2:
+                return
+                
+            main_label = domain_parts[0]
+            
+            # Remove common prefixes
+            if main_label.startswith('www'):
+                main_label = main_label[3:]
+            
+            if len(main_label) < 4:  # Too short for meaningful entropy analysis
+                return
+            
+            # Calculate Shannon entropy
+            frequency = Counter(main_label.lower())
+            length = len(main_label)
+            
+            if length == 0:
+                return
+            
+            entropy = 0
+            for count in frequency.values():
+                prob = count / length
+                entropy -= prob * math.log2(prob)
+            
+            # High entropy with reasonable length suggests randomized domain
+            if entropy > 3.8 and length >= 8:
+                points = -12
+                results['score'] += points
+                results['explanations'].append({
+                    'type': 'negative',
+                    'description': f'Highly randomized domain name detected',
+                    'points': abs(points),
+                    'evidence': f'Shannon entropy: {entropy:.2f} (threshold: 3.8)'
+                })
+            
+            # Also check consonant/vowel ratio for additional randomness indicators
+            vowels = 'aeiou'
+            vowel_count = sum(1 for c in main_label.lower() if c in vowels)
+            consonant_count = sum(1 for c in main_label.lower() if c.isalpha() and c not in vowels)
+            
+            if vowel_count > 0:
+                cv_ratio = consonant_count / vowel_count
+                if (cv_ratio > 4 or cv_ratio < 0.3) and length >= 6:
+                    points = -6
+                    results['score'] += points
+                    results['explanations'].append({
+                        'type': 'negative',
+                        'description': f'Unusual letter distribution in domain',
+                        'points': abs(points),
+                        'evidence': f'Consonant/vowel ratio: {cv_ratio:.2f} (unusual)'
+                    })
+            
+        except Exception as e:
+            logger.debug(f"Domain entropy analysis failed for {domain}: {e}")
 
 if __name__ == "__main__":
     # Test the domain analyzer

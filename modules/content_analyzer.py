@@ -90,6 +90,11 @@ class ContentAnalyzer:
             self._check_url_shortener(url, results)  # Check if main domain is a shortener
             self._check_obfuscated_scripts(soup, results)  # Check for obfuscated JavaScript
             
+            # Phase 2: Advanced content analysis
+            self._detect_hidden_elements(soup, results)
+            self._analyze_link_behavior(soup, url, results)
+            self._analyze_download_behavior(soup, results)
+            
             return results
             
         except requests.RequestException as e:
@@ -547,6 +552,204 @@ class ContentAnalyzer:
                         
         except Exception as e:
             logger.debug(f"Obfuscated script check failed: {e}")
+    
+    def _detect_hidden_elements(self, soup: BeautifulSoup, results: Dict):
+        """Detect hidden iframes and suspicious elements"""
+        
+        try:
+            if not soup:
+                return
+                
+            hidden_count = 0
+            suspicious_elements = []
+            
+            # Check for hidden iframes
+            iframes = soup.find_all('iframe')
+            for iframe in iframes:
+                src = iframe.get('src', '')
+                style = iframe.get('style', '').lower()
+                width = iframe.get('width', '')
+                height = iframe.get('height', '')
+                
+                # Check for various hiding techniques
+                if ('display:none' in style or 'visibility:hidden' in style or 
+                    width in ['0', '0px'] or height in ['0', '0px'] or
+                    'position:absolute' in style and 'z-index:-' in style):
+                    hidden_count += 1
+                    suspicious_elements.append(f"Hidden iframe: {src[:30]}" if src else "Hidden iframe")
+            
+            # Check for hidden divs with forms
+            hidden_divs = soup.find_all('div', style=True)
+            for div in hidden_divs:
+                style = div.get('style', '').lower()
+                if 'display:none' in style or 'visibility:hidden' in style:
+                    # Check if this hidden div contains forms or inputs
+                    if div.find('form') or div.find('input'):
+                        hidden_count += 1
+                        suspicious_elements.append("Hidden form container")
+            
+            # Check for elements with suspicious positioning
+            for tag in soup.find_all(['div', 'span', 'iframe'], style=True):
+                style = tag.get('style', '').lower()
+                if 'position:absolute' in style and any(prop in style for prop in ['z-index:-', 'left:-9999', 'top:-9999']):
+                    hidden_count += 1
+                    suspicious_elements.append(f"Suspicious positioned element: {tag.name}")
+            
+            # Score based on hidden elements found
+            if hidden_count > 0:
+                points = -15 if hidden_count >= 3 else -10
+                results['score'] += points
+                results['explanations'].append({
+                    'type': 'negative', 
+                    'description': f'Hidden elements detected ({hidden_count} elements)',
+                    'points': abs(points),
+                    'evidence': f"Found: {', '.join(suspicious_elements[:3])}"
+                })
+                
+        except Exception as e:
+            logger.debug(f"Hidden element detection failed: {e}")
+    
+    def _analyze_link_behavior(self, soup: BeautifulSoup, url: str, results: Dict):
+        """Analyze link behavior for mouseover mismatch and deceptive linking"""
+        
+        try:
+            if not soup:
+                return
+                
+            mismatch_count = 0
+            deceptive_links = []
+            
+            links = soup.find_all('a', href=True)
+            
+            for link in links:
+                href = link.get('href', '').strip()
+                text = link.get_text(strip=True)
+                
+                if not href or not text:
+                    continue
+                    
+                # Skip internal links and common patterns
+                if href.startswith(('#', '/', 'javascript:', 'mailto:', 'tel:')):
+                    continue
+                
+                try:
+                    # Check for mouseover mismatch (link text looks like URL but goes elsewhere)
+                    if '.' in text and len(text.split()) == 1:  # Text looks like a domain
+                        # Clean the text to look like a URL
+                        text_clean = text if text.startswith('http') else f"http://{text}"
+                        
+                        try:
+                            text_parsed = urlparse(text_clean)
+                            href_parsed = urlparse(href if href.startswith('http') else urljoin(url, href))
+                            
+                            if (text_parsed.netloc and href_parsed.netloc and 
+                                text_parsed.netloc.lower() != href_parsed.netloc.lower()):
+                                mismatch_count += 1
+                                deceptive_links.append(f"{text} → {href_parsed.netloc}")
+                        except:
+                            pass
+                
+                    # Check for suspicious redirect patterns in URLs
+                    if any(pattern in href.lower() for pattern in ['redirect', 'r?url=', 'goto', 'link?url=']):
+                        points = -8
+                        results['score'] += points
+                        results['explanations'].append({
+                            'type': 'negative',
+                            'description': 'Suspicious redirect patterns in links',
+                            'points': abs(points),
+                            'evidence': f"Redirect pattern found in: {href[:50]}"
+                        })
+                
+                except Exception:
+                    continue
+            
+            # Score based on mouseover mismatches
+            if mismatch_count > 0:
+                points = -15 if mismatch_count >= 3 else -10
+                results['score'] += points
+                results['explanations'].append({
+                    'type': 'negative',
+                    'description': f'Deceptive link behavior detected ({mismatch_count} mismatches)',
+                    'points': abs(points),
+                    'evidence': f"Examples: {'; '.join(deceptive_links[:2])}"
+                })
+                
+        except Exception as e:
+            logger.debug(f"Link behavior analysis failed: {e}")
+    
+    def _analyze_download_behavior(self, soup: BeautifulSoup, results: Dict):
+        """Analyze file download patterns and prompts"""
+        
+        try:
+            if not soup:
+                return
+                
+            # Suspicious file extensions
+            dangerous_extensions = {
+                '.exe', '.scr', '.bat', '.cmd', '.com', '.pif', '.apk', '.msi',
+                '.dmg', '.pkg', '.deb', '.jar', '.vbs', '.js', '.ps1', '.zip'
+            }
+            
+            suspicious_downloads = []
+            auto_download_detected = False
+            
+            # Check download links
+            links = soup.find_all('a', href=True)
+            for link in links:
+                href = link.get('href', '').lower()
+                text = link.get_text().lower()
+                
+                # Check for suspicious file extensions in href
+                for ext in dangerous_extensions:
+                    if ext in href:
+                        # Check if this is likely a malicious download
+                        download_keywords = ['download', 'install', 'update', 'free', 'click here']
+                        if any(keyword in text for keyword in download_keywords):
+                            suspicious_downloads.append(f"{ext.upper()} download: {text[:30]}")
+            
+            # Check for auto-download JavaScript patterns
+            scripts = soup.find_all('script')
+            for script in scripts:
+                script_content = script.get_text()
+                
+                auto_download_patterns = [
+                    'window.location.href=', 'document.location=', 
+                    'location.replace(', 'window.open('
+                ]
+                
+                for pattern in auto_download_patterns:
+                    if pattern in script_content:
+                        # Check if this script references suspicious file types
+                        if any(ext in script_content.lower() for ext in dangerous_extensions):
+                            auto_download_detected = True
+                            break
+                
+                if auto_download_detected:
+                    break
+            
+            # Score based on findings
+            if auto_download_detected:
+                points = -20
+                results['score'] += points
+                results['explanations'].append({
+                    'type': 'negative',
+                    'description': 'Automatic download script detected',
+                    'points': abs(points),
+                    'evidence': 'JavaScript attempts automatic file download'
+                })
+            
+            if suspicious_downloads:
+                points = -15 if len(suspicious_downloads) >= 3 else -10
+                results['score'] += points
+                results['explanations'].append({
+                    'type': 'negative',
+                    'description': f'Suspicious download prompts ({len(suspicious_downloads)} found)',
+                    'points': abs(points),
+                    'evidence': f"Examples: {'; '.join(suspicious_downloads[:2])}"
+                })
+                
+        except Exception as e:
+            logger.debug(f"Download behavior analysis failed: {e}")
 
 if __name__ == "__main__":
     # Test the content analyzer
