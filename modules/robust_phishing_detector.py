@@ -6,7 +6,9 @@ Crash-proof version with comprehensive error handling and timeouts
 from .domain_analyzer import DomainAnalyzer
 from .content_analyzer import ContentAnalyzer  
 from .technical_analyzer import TechnicalAnalyzer
-from typing import Dict, List, Tuple
+from .visual_analyzer import create_visual_analyzer
+from .company_database import create_company_database
+from typing import Dict, List, Tuple, Optional
 import logging
 import time
 import threading
@@ -39,6 +41,13 @@ class RobustPhishingDetector:
             self.domain_analyzer = DomainAnalyzer()
             self.content_analyzer = ContentAnalyzer()
             self.technical_analyzer = TechnicalAnalyzer()
+            
+            # Initialize company database for whitelist functionality
+            self.company_database = create_company_database()
+            
+            # Initialize visual analyzer with company database integration
+            self.visual_analyzer = create_visual_analyzer(company_database=self.company_database)
+            
             logger.info("✅ All analyzers initialized successfully")
         except Exception as e:
             logger.error(f"❌ Analyzer initialization failed: {e}")
@@ -46,9 +55,10 @@ class RobustPhishingDetector:
         
         # Scoring weights for different components
         self.weights = {
-            'domain': 0.35,      # 35% weight - domain characteristics
-            'content': 0.40,     # 40% weight - content analysis
-            'technical': 0.25    # 25% weight - technical infrastructure
+            'domain': 0.30,      # 30% weight - domain characteristics
+            'content': 0.35,     # 35% weight - content analysis
+            'technical': 0.20,   # 20% weight - technical infrastructure
+            'visual': 0.15       # 15% weight - visual/brand analysis
         }
         
         # Base trust score (neutral starting point)
@@ -59,7 +69,8 @@ class RobustPhishingDetector:
             'domain': 15,        # Domain analysis timeout
             'content': 30,       # Content analysis timeout (longer for complex pages)
             'technical': 20,     # Technical analysis timeout
-            'total': 60          # Total analysis timeout
+            'visual': 25,        # Visual analysis timeout (for image processing)
+            'total': 75          # Total analysis timeout
         }
         
         # Resource limits
@@ -168,6 +179,58 @@ class RobustPhishingDetector:
         
         return True, url
     
+    def _check_whitelist(self, url: str) -> Optional[Dict]:
+        """Check if URL is whitelisted in company database"""
+        try:
+            if not self.company_database:
+                return None
+            
+            is_whitelisted, company_info = self.company_database.is_domain_whitelisted(url)
+            
+            if is_whitelisted and company_info:
+                logger.info(f"✅ Domain whitelisted: {company_info.get('company_name', 'Unknown')}")
+                
+                return {
+                    'url': url,
+                    'trust_score': 95,  # High trust for whitelisted companies
+                    'risk_level': 'LOW',
+                    'confidence': 95,
+                    'explanations': {
+                        'positive_signals': [{
+                            'type': 'positive',
+                            'description': f'Verified legitimate company: {company_info.get("company_name", "Unknown")}',
+                            'points': 25,
+                            'evidence': f'Industry: {company_info.get("industry", "Unknown")}',
+                            'module': 'Company Database'
+                        }],
+                        'negative_signals': [],
+                        'neutral_signals': [{
+                            'type': 'neutral',
+                            'description': 'Comprehensive analysis skipped for whitelisted domain',
+                            'evidence': 'Domain found in legitimate company database',
+                            'module': 'Company Database'
+                        }],
+                        'warnings': []
+                    },
+                    'component_scores': {
+                        'domain': 95,
+                        'content': 'Whitelisted', 
+                        'technical': 'Whitelisted',
+                        'visual': 'Whitelisted'
+                    },
+                    'whitelist_info': company_info,
+                    'analysis_status': {
+                        'whitelisted': True,
+                        'analysis_bypassed': True
+                    }
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Whitelist check failed for {url}: {e}")
+            return None
+    
     def analyze_url(self, url: str) -> Dict:
         """Perform comprehensive analysis of a URL with robust error handling"""
         
@@ -196,6 +259,12 @@ class RobustPhishingDetector:
             
             # Use the validated URL
             url = validated_url
+            
+            # Check whitelist first (bypass expensive analysis for known companies)
+            whitelist_result = self._check_whitelist(url)
+            if whitelist_result:
+                whitelist_result['analysis_time'] = time.time() - overall_start_time
+                return whitelist_result
             
             # Initialize results with error handling
             analysis_results = {}
@@ -281,6 +350,152 @@ class RobustPhishingDetector:
                     'neutral_signals': []
                 },
                 'component_scores': {'domain': 'Error', 'content': 'Error', 'technical': 'Error'},
+                'analysis_time': time.time() - overall_start_time
+            }
+    
+    def analyze_url_with_visual(self, url: str, uploaded_logo=None) -> Dict:
+        """Perform comprehensive analysis including visual analysis with optional logo"""
+        
+        overall_start_time = time.time()
+        
+        try:
+            logger.info(f"🛡️ Starting comprehensive analysis with visual features for: {url}")
+            
+            # Validate URL first
+            is_valid, validated_url = self._validate_url(url)
+            if not is_valid:
+                return {
+                    'url': url,
+                    'trust_score': 0,
+                    'risk_level': 'ERROR',
+                    'confidence': 0,
+                    'explanations': {
+                        'error': f'URL validation failed: {validated_url}',
+                        'negative_signals': [],
+                        'positive_signals': [],
+                        'neutral_signals': []
+                    },
+                    'component_scores': {'domain': 'Error', 'content': 'Error', 'technical': 'Error', 'visual': 'Error'},
+                    'analysis_time': time.time() - overall_start_time
+                }
+            
+            # Use the validated URL
+            url = validated_url
+            
+            # Check whitelist first (bypass expensive analysis for known companies)
+            whitelist_result = self._check_whitelist(url)
+            if whitelist_result:
+                whitelist_result['analysis_time'] = time.time() - overall_start_time
+                return whitelist_result
+            
+            # Initialize results with error handling
+            analysis_results = {}
+            successful_analyses = 0
+            
+            # Domain Analysis (most reliable, fastest)
+            logger.info("🌐 Starting domain analysis...")
+            domain_result = self._safe_analyzer_call(
+                'Domain', 
+                self.domain_analyzer.analyze_domain, 
+                url
+            )
+            analysis_results['domain'] = domain_result
+            if 'error' not in domain_result:
+                successful_analyses += 1
+            
+            # Technical Analysis (medium reliability)
+            logger.info("🔧 Starting technical analysis...")
+            technical_result = self._safe_analyzer_call(
+                'Technical',
+                self.technical_analyzer.analyze_technical,
+                url
+            )
+            analysis_results['technical'] = technical_result
+            if 'error' not in technical_result:
+                successful_analyses += 1
+            
+            # Content Analysis (most likely to fail/timeout)  
+            logger.info("📝 Starting content analysis...")
+            content_result = self._safe_analyzer_call(
+                'Content',
+                self.content_analyzer.analyze_content,
+                url
+            )
+            analysis_results['content'] = content_result
+            if 'error' not in content_result:
+                successful_analyses += 1
+            
+            # Visual Analysis (optional, depends on libraries)
+            visual_result = {'score': 0, 'explanations': []}
+            if self.visual_analyzer:
+                logger.info("🎨 Starting visual analysis...")
+                visual_result = self._safe_analyzer_call(
+                    'Visual',
+                    self.visual_analyzer.analyze_visual_content,
+                    url,
+                    uploaded_logo
+                )
+                analysis_results['visual'] = visual_result
+                if 'error' not in visual_result:
+                    successful_analyses += 1
+            else:
+                analysis_results['visual'] = {
+                    'score': 0, 
+                    'explanations': [{
+                        'type': 'neutral',
+                        'description': 'Visual analysis not available',
+                        'evidence': 'Deep learning libraries not installed'
+                    }]
+                }
+            
+            logger.info(f"📊 Completed analyses: {successful_analyses}/{4 if self.visual_analyzer else 3} successful")
+            
+            # If no analyses succeeded, return error
+            if successful_analyses == 0:
+                return {
+                    'url': url,
+                    'trust_score': 0,
+                    'risk_level': 'ERROR',
+                    'confidence': 0,
+                    'explanations': {
+                        'error': 'All analysis modules failed - URL may be unreachable or problematic',
+                        'details': [
+                            domain_result.get('error', 'Domain analysis failed'),
+                            content_result.get('error', 'Content analysis failed'),
+                            technical_result.get('error', 'Technical analysis failed'),
+                            visual_result.get('error', 'Visual analysis failed')
+                        ]
+                    },
+                    'component_scores': {'domain': 'Error', 'content': 'Error', 'technical': 'Error', 'visual': 'Error'},
+                    'analysis_time': time.time() - overall_start_time
+                }
+            
+            # Combine results with visual analysis
+            combined_result = self._combine_analysis_results_with_visual(
+                url, domain_result, content_result, technical_result, visual_result
+            )
+            
+            combined_result['analysis_time'] = time.time() - overall_start_time
+            combined_result['successful_analyses'] = f"{successful_analyses}/{4 if self.visual_analyzer else 3}"
+            
+            logger.info(f"✅ Comprehensive analysis completed in {combined_result['analysis_time']:.2f} seconds")
+            
+            return combined_result
+        
+        except Exception as e:
+            logger.error(f"💥 Critical error in visual analysis for {url}: {e}")
+            return {
+                'url': url,
+                'trust_score': 0,
+                'risk_level': 'ERROR', 
+                'confidence': 0,
+                'explanations': {
+                    'error': f'Critical analysis error: {str(e)[:100]}',
+                    'negative_signals': [],
+                    'positive_signals': [],
+                    'neutral_signals': []
+                },
+                'component_scores': {'domain': 'Error', 'content': 'Error', 'technical': 'Error', 'visual': 'Error'},
                 'analysis_time': time.time() - overall_start_time
             }
     
@@ -449,6 +664,260 @@ class RobustPhishingDetector:
         
         # Base confidence on successful analyses
         base_confidence = (successful_analyses / 3) * 60  # 0-60 based on successful modules
+        
+        negative_signals = explanations.get('negative_signals', [])
+        positive_signals = explanations.get('positive_signals', [])
+        
+        # Count strong signals
+        strong_negative = len([s for s in negative_signals if s.get('points', 0) >= 10])
+        strong_positive = len([s for s in positive_signals if s.get('points', 0) >= 8])
+        
+        total_strong_signals = strong_negative + strong_positive
+        
+        # Add confidence based on signal strength
+        signal_confidence = min(30, total_strong_signals * 8)
+        
+        # Add confidence based on signal count
+        total_signals = len(negative_signals) + len(positive_signals)
+        count_confidence = min(10, total_signals * 2)
+        
+        final_confidence = int(base_confidence + signal_confidence + count_confidence)
+        
+        return min(100, final_confidence)
+    
+    def _combine_explanations_with_visual(self, domain_result: Dict, content_result: Dict, 
+                                       technical_result: Dict, visual_result: Dict) -> Dict:
+        """Combine explanations including visual analysis with error handling"""
+        
+        negative_signals = []
+        positive_signals = []
+        neutral_signals = []
+        warnings = []
+        
+        # Process each result safely
+        results = [
+            ('Domain Analysis', domain_result),
+            ('Content Analysis', content_result),
+            ('Technical Analysis', technical_result),
+            ('Visual Analysis', visual_result)
+        ]
+        
+        for module_name, result in results:
+            if 'error' in result:
+                # Add error as neutral signal
+                neutral_signals.append({
+                    'type': 'neutral',
+                    'description': f'{module_name} unavailable',
+                    'evidence': result['error'],
+                    'module': module_name
+                })
+            else:
+                # Process explanations if available
+                explanations = result.get('explanations', [])
+                for exp in explanations:
+                    exp['module'] = module_name
+                    if exp.get('type') == 'negative':
+                        negative_signals.append(exp)
+                    elif exp.get('type') == 'positive':
+                        positive_signals.append(exp)
+                    else:
+                        neutral_signals.append(exp)
+                
+                # Process warning signals if available
+                result_warnings = result.get('warnings', [])
+                for warning in result_warnings:
+                    warning['module'] = module_name
+                    warnings.append(warning)
+        
+        # Sort by points (highest impact first)
+        negative_signals.sort(key=lambda x: x.get('points', 0), reverse=True)
+        positive_signals.sort(key=lambda x: x.get('points', 0), reverse=True)
+        
+        return {
+            'negative_signals': negative_signals,
+            'positive_signals': positive_signals,
+            'neutral_signals': neutral_signals,
+            'warnings': warnings,
+            'summary': self._generate_explanation_summary_robust(negative_signals, positive_signals)
+        }
+    
+    def _calculate_confidence_with_visual(self, explanations: Dict, successful_analyses: int, total_modules: int) -> int:
+        """Calculate confidence including visual analysis"""
+        
+        # Base confidence on successful analyses
+        base_confidence = (successful_analyses / total_modules) * 60  # 0-60 based on successful modules
+        
+        negative_signals = explanations.get('negative_signals', [])
+        positive_signals = explanations.get('positive_signals', [])
+        
+        # Count strong signals
+        strong_negative = len([s for s in negative_signals if s.get('points', 0) >= 10])
+        strong_positive = len([s for s in positive_signals if s.get('points', 0) >= 8])
+        
+        total_strong_signals = strong_negative + strong_positive
+        
+        # Add confidence based on signal strength
+        signal_confidence = min(30, total_strong_signals * 8)
+        
+        # Add confidence based on signal count
+        total_signals = len(negative_signals) + len(positive_signals)
+        count_confidence = min(10, total_signals * 2)
+        
+        final_confidence = int(base_confidence + signal_confidence + count_confidence)
+        
+        return min(100, final_confidence)
+    
+    def _combine_analysis_results_with_visual(self, url: str, domain_result: Dict, 
+                                           content_result: Dict, technical_result: Dict, 
+                                           visual_result: Dict) -> Dict:
+        """Combine results including visual analysis with robust partial failure handling"""
+        
+        # Extract scores (handle errors gracefully)
+        domain_score = domain_result.get('score', 0) if 'error' not in domain_result else 0
+        content_score = content_result.get('score', 0) if 'error' not in content_result else 0
+        technical_score = technical_result.get('score', 0) if 'error' not in technical_result else 0
+        visual_score = visual_result.get('score', 0) if 'error' not in visual_result else 0
+        
+        # Count successful analyses for weight adjustment
+        successful_analyses = sum([
+            'error' not in domain_result,
+            'error' not in content_result, 
+            'error' not in technical_result,
+            'error' not in visual_result and self.visual_analyzer is not None
+        ])
+        
+        # Adjust weights based on successful analyses
+        if successful_analyses > 0:
+            # Start with original weights
+            adjusted_weights = self.weights.copy()
+            
+            # Zero out failed modules and redistribute weights
+            if 'error' in domain_result:
+                adjusted_weights['domain'] = 0
+            if 'error' in content_result:
+                adjusted_weights['content'] = 0  
+            if 'error' in technical_result:
+                adjusted_weights['technical'] = 0
+            if 'error' in visual_result or not self.visual_analyzer:
+                adjusted_weights['visual'] = 0
+            
+            # Normalize weights so they sum to 1
+            total_weight = sum(adjusted_weights.values())
+            if total_weight > 0:
+                adjusted_weights = {k: v/total_weight for k, v in adjusted_weights.items()}
+            else:
+                adjusted_weights = {'domain': 0, 'content': 0, 'technical': 0, 'visual': 0}
+        else:
+            adjusted_weights = {'domain': 0, 'content': 0, 'technical': 0, 'visual': 0}
+        
+        # Calculate weighted final score
+        weighted_score = (
+            domain_score * adjusted_weights['domain'] +
+            content_score * adjusted_weights['content'] + 
+            technical_score * adjusted_weights['technical'] +
+            visual_score * adjusted_weights['visual']
+        )
+        
+        # Convert to 0-100 trust score 
+        trust_score = max(0, min(100, self.base_score + weighted_score))
+        
+        # Combine explanations with visual analysis
+        all_explanations = self._combine_explanations_with_visual(
+            domain_result, content_result, technical_result, visual_result
+        )
+        
+        # Calculate confidence based on successful analyses
+        total_modules = 4 if self.visual_analyzer else 3
+        confidence = self._calculate_confidence_with_visual(all_explanations, successful_analyses, total_modules)
+        
+        # Determine risk level
+        risk_level = self._determine_risk_level(trust_score)
+        
+        # Create component scores
+        component_scores = {
+            'domain': int(self.base_score + domain_score) if 'error' not in domain_result else 'Error',
+            'content': int(self.base_score + content_score) if 'error' not in content_result else 'Error', 
+            'technical': int(self.base_score + technical_score) if 'error' not in technical_result else 'Error',
+            'visual': int(self.base_score + visual_score) if 'error' not in visual_result and self.visual_analyzer else 'N/A'
+        }
+        
+        return {
+            'url': url,
+            'trust_score': int(trust_score),
+            'risk_level': risk_level,
+            'confidence': confidence,
+            'explanations': all_explanations,
+            'component_scores': component_scores,
+            'weights_used': adjusted_weights,
+            'visual_analysis': visual_result,  # Include full visual results
+            'analysis_status': {
+                'successful_modules': successful_analyses,
+                'total_modules': 4 if self.visual_analyzer else 3,
+                'partial_analysis': successful_analyses < (4 if self.visual_analyzer else 3)
+            }
+        }
+    
+    def _combine_explanations_with_visual(self, domain_result: Dict, content_result: Dict, 
+                                       technical_result: Dict, visual_result: Dict) -> Dict:
+        """Combine explanations including visual analysis with error handling"""
+        
+        negative_signals = []
+        positive_signals = []
+        neutral_signals = []
+        warnings = []
+        
+        # Process each result safely
+        results = [
+            ('Domain Analysis', domain_result),
+            ('Content Analysis', content_result),
+            ('Technical Analysis', technical_result),
+            ('Visual Analysis', visual_result)
+        ]
+        
+        for module_name, result in results:
+            if 'error' in result:
+                # Add error as neutral signal
+                neutral_signals.append({
+                    'type': 'neutral',
+                    'description': f'{module_name} unavailable',
+                    'evidence': result['error'],
+                    'module': module_name
+                })
+            else:
+                # Process explanations if available
+                explanations = result.get('explanations', [])
+                for exp in explanations:
+                    exp['module'] = module_name
+                    if exp.get('type') == 'negative':
+                        negative_signals.append(exp)
+                    elif exp.get('type') == 'positive':
+                        positive_signals.append(exp)
+                    else:
+                        neutral_signals.append(exp)
+                
+                # Process warning signals if available
+                result_warnings = result.get('warnings', [])
+                for warning in result_warnings:
+                    warning['module'] = module_name
+                    warnings.append(warning)
+        
+        # Sort by points (highest impact first)
+        negative_signals.sort(key=lambda x: x.get('points', 0), reverse=True)
+        positive_signals.sort(key=lambda x: x.get('points', 0), reverse=True)
+        
+        return {
+            'negative_signals': negative_signals,
+            'positive_signals': positive_signals,
+            'neutral_signals': neutral_signals,
+            'warnings': warnings,
+            'summary': self._generate_explanation_summary_robust(negative_signals, positive_signals)
+        }
+    
+    def _calculate_confidence_with_visual(self, explanations: Dict, successful_analyses: int, total_modules: int) -> int:
+        """Calculate confidence including visual analysis"""
+        
+        # Base confidence on successful analyses
+        base_confidence = (successful_analyses / total_modules) * 60
         
         negative_signals = explanations.get('negative_signals', [])
         positive_signals = explanations.get('positive_signals', [])
