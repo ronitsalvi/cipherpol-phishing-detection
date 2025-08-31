@@ -84,8 +84,8 @@ class TechnicalAnalyzer:
                     cert = ssock.getpeercert()
                     cipher = ssock.cipher()
                     
-                    # Certificate is present and valid (reduced bonus)
-                    points = 3
+                    # Certificate is present and valid (no scoring impact)
+                    points = 0
                     results['score'] += points
                     results['explanations'].append({
                         'type': 'positive',
@@ -183,7 +183,7 @@ class TechnicalAnalyzer:
                 is_trusted = any(trusted in issuer_lower for trusted in trusted_issuers)
                 
                 if is_trusted:
-                    points = 3
+                    points = 0
                     results['score'] += points
                     results['explanations'].append({
                         'type': 'positive',
@@ -212,7 +212,7 @@ class TechnicalAnalyzer:
                 
                 # Check protocol version
                 if protocol in ['TLSv1.3', 'TLSv1.2']:
-                    points = 2
+                    points = 0
                     results['score'] += points
                     results['explanations'].append({
                         'type': 'positive',
@@ -232,7 +232,7 @@ class TechnicalAnalyzer:
                 
                 # Check key length
                 if key_length >= 256:
-                    points = 2
+                    points = 0
                     results['score'] += points
                     results['explanations'].append({
                         'type': 'positive',

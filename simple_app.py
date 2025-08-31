@@ -112,7 +112,7 @@ def main():
             progress_bar.progress(25)
             
             try:
-                # Perform comprehensive analysis including visual
+                # Step 1: Perform comprehensive traditional analysis
                 start_time = time.time()
                 
                 # Use the enhanced analysis method if visual analyzer is available
@@ -125,11 +125,49 @@ def main():
                     visual_result = None
                 
                 analysis_time = time.time() - start_time
-                progress_bar.progress(100)
-                status_text.text("✅ Analysis complete!")
+                progress_bar.progress(75)
+                status_text.text("✅ Traditional analysis complete!")
                 
-                # Display results
-                display_results(result, visual_result, analysis_time, detector)
+                # Display traditional results immediately
+                result_container = st.container()
+                with result_container:
+                    display_results(result, visual_result, analysis_time, detector)
+                
+                # Step 2: Gemini LLM Analysis (progressive enhancement)
+                if hasattr(detector, 'gemini_analyzer') and detector.gemini_analyzer:
+                    progress_bar.progress(85)
+                    status_text.text("🧠 Getting AI validation...")
+                    
+                    # Create placeholder for Gemini results
+                    gemini_container = st.container()
+                    with gemini_container:
+                        gemini_placeholder = st.empty()
+                        with gemini_placeholder:
+                            st.info("🤖 **AI Assessment**: Analyzing results with Gemini LLM...")
+                    
+                    try:
+                        # Get Gemini analysis
+                        gemini_start = time.time()
+                        gemini_analysis = detector.gemini_analyzer.analyze_with_llm(url_input, result)
+                        gemini_time = time.time() - gemini_start
+                        
+                        progress_bar.progress(100)
+                        status_text.text("✅ Complete analysis with AI validation!")
+                        
+                        # Update placeholder with Gemini results
+                        with gemini_placeholder:
+                            display_gemini_assessment(gemini_analysis, gemini_time)
+                            
+                    except Exception as e:
+                        progress_bar.progress(100)
+                        status_text.text("✅ Analysis complete (AI validation failed)")
+                        
+                        with gemini_placeholder:
+                            st.warning(f"⚠️ **AI Assessment Unavailable**: {str(e)}")
+                            st.info("Traditional analysis results above remain valid.")
+                else:
+                    progress_bar.progress(100)
+                    status_text.text("✅ Analysis complete!")
                 
             except Exception as e:
                 st.error(f"❌ Analysis failed: {str(e)}")
@@ -409,6 +447,62 @@ def display_visual_analysis(visual_result):
             
             if explanation.get('evidence'):
                 st.markdown(f"   *Evidence: {explanation['evidence']}*")
+
+def display_gemini_assessment(gemini_result, analysis_time):
+    """Display Gemini LLM assessment results"""
+    
+    st.markdown("### 🤖 AI Expert Assessment")
+    
+    if gemini_result['status'] != 'success':
+        st.warning("⚠️ AI validation unavailable - using traditional analysis only")
+        return
+    
+    assessment = gemini_result.get('gemini_assessment', {})
+    verdict = assessment.get('verdict', 'unavailable')
+    confidence = assessment.get('confidence', 0)
+    reasoning = assessment.get('reasoning', 'No reasoning provided')
+    recommendation = assessment.get('recommendation', 'Use traditional analysis above')
+    
+    # Display verdict with appropriate styling
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        if verdict == 'safe':
+            st.success(f"✅ **AI Assessment**: SAFE WEBSITE")
+        elif verdict == 'suspicious':
+            st.warning(f"⚠️ **AI Assessment**: SUSPICIOUS WEBSITE")
+        elif verdict == 'malicious':
+            st.error(f"❌ **AI Assessment**: MALICIOUS WEBSITE")
+        else:
+            st.info(f"ℹ️ **AI Assessment**: ANALYSIS UNAVAILABLE")
+    
+    with col2:
+        st.metric("AI Confidence", f"{confidence}%")
+    
+    with col3:
+        st.metric("AI Response Time", f"{analysis_time:.1f}s")
+    
+    # Show AI reasoning
+    st.markdown("#### 🧠 AI Expert Reasoning:")
+    st.markdown(f"*{reasoning}*")
+    
+    # Show AI recommendation
+    st.markdown("#### 💡 AI Recommendation:")
+    if verdict == 'safe':
+        st.success(f"✅ {recommendation}")
+    elif verdict == 'suspicious':
+        st.warning(f"⚠️ {recommendation}")
+    elif verdict == 'malicious':
+        st.error(f"❌ {recommendation}")
+    else:
+        st.info(f"ℹ️ {recommendation}")
+    
+    # Show critical factors if available
+    critical_factors = assessment.get('critical_factors', [])
+    if critical_factors:
+        st.markdown("#### ⚡ Key Factors Considered:")
+        for factor in critical_factors:
+            st.markdown(f"• {factor}")
 
 if __name__ == "__main__":
     main()

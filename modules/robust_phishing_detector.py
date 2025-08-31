@@ -8,6 +8,7 @@ from .content_analyzer import ContentAnalyzer
 from .technical_analyzer import TechnicalAnalyzer
 from .visual_analyzer import create_visual_analyzer
 from .company_database import create_company_database
+from .gemini_analyzer import create_gemini_analyzer
 from typing import Dict, List, Tuple, Optional
 import logging
 import time
@@ -47,6 +48,9 @@ class RobustPhishingDetector:
             
             # Initialize visual analyzer with company database integration
             self.visual_analyzer = create_visual_analyzer(company_database=self.company_database)
+            
+            # Initialize Gemini LLM analyzer for final assessment
+            self.gemini_analyzer = create_gemini_analyzer()
             
             logger.info("✅ All analyzers initialized successfully")
         except Exception as e:
@@ -950,6 +954,65 @@ class RobustPhishingDetector:
             return 'HIGH'
         else:
             return 'CRITICAL'
+    
+    def analyze_url_with_gemini(self, url: str, uploaded_logo=None) -> Dict:
+        """
+        Enhanced analysis with Gemini LLM final validation
+        Runs traditional analysis first, then sends results to Gemini for expert assessment
+        """
+        
+        logger.info(f"🛡️ Starting comprehensive analysis with Gemini validation for: {url}")
+        
+        # Step 1: Run traditional analysis (all 4 modules)
+        traditional_result = self.analyze_url_with_visual(url, uploaded_logo)
+        
+        # Step 2: Send to Gemini for expert assessment (if available)
+        gemini_result = None
+        if self.gemini_analyzer:
+            try:
+                logger.info("🧠 Starting Gemini LLM analysis...")
+                gemini_result = self.gemini_analyzer.analyze_with_llm(url, traditional_result)
+            except Exception as e:
+                logger.warning(f"⚠️ Gemini analysis failed: {e}")
+                gemini_result = {
+                    'status': 'error',
+                    'error': str(e),
+                    'gemini_assessment': {
+                        'verdict': 'unavailable',
+                        'confidence': 0,
+                        'reasoning': 'LLM validation unavailable'
+                    }
+                }
+        else:
+            logger.info("ℹ️ Gemini analyzer not available")
+            gemini_result = {
+                'status': 'disabled',
+                'gemini_assessment': {
+                    'verdict': 'unavailable',
+                    'confidence': 0,
+                    'reasoning': 'LLM analyzer not initialized'
+                }
+            }
+        
+        # Step 3: Combine results
+        enhanced_result = traditional_result.copy()
+        enhanced_result['gemini_analysis'] = gemini_result
+        
+        # Step 4: Update recommendation if Gemini provides strong signal
+        if (gemini_result['status'] == 'success' and 
+            gemini_result.get('gemini_assessment', {}).get('confidence', 0) >= 80):
+            
+            gemini_verdict = gemini_result['gemini_assessment']['verdict']
+            enhanced_result['gemini_override'] = {
+                'verdict': gemini_verdict,
+                'reasoning': gemini_result['gemini_assessment']['reasoning'],
+                'confidence': gemini_result['gemini_assessment']['confidence']
+            }
+            
+            logger.info(f"🤖 Gemini assessment: {gemini_verdict} (confidence: {gemini_result['gemini_assessment']['confidence']}%)")
+        
+        logger.info("✅ Enhanced analysis with Gemini completed")
+        return enhanced_result
     
     def get_recommendation(self, result: Dict) -> str:
         """Generate user-friendly recommendation based on analysis"""
