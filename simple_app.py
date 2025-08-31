@@ -21,14 +21,24 @@ def main():
     st.title("🛡️ Explainable Phishing Detection System")
     st.markdown("**AI-powered fraud detection with transparent explanations**")
     
-    # Initialize detector (cached for performance)
+    # Check if visual libraries are available
+    def check_visual_availability():
+        try:
+            import torch
+            import torchvision
+            import faiss
+            return True
+        except ImportError:
+            return False
+    
+    # Initialize detector (cached for performance with visual library detection)
     @st.cache_resource
-    def load_detector():
+    def load_detector(_visual_available=None):
         return RobustPhishingDetector()
     
-    # Initialize visual analyzer (cached for performance)
+    # Initialize visual analyzer (cached for performance with dependency check)
     @st.cache_resource
-    def load_visual_analyzer():
+    def load_visual_analyzer(_visual_available=None):
         return create_visual_analyzer()
     
     # Add cache refresh button for debugging
@@ -39,8 +49,11 @@ def main():
             st.rerun()
     
     try:
-        detector = load_detector()
-        visual_analyzer = load_visual_analyzer()
+        # Check visual library availability and pass to cache functions
+        visual_available = check_visual_availability()
+        
+        detector = load_detector(_visual_available=visual_available)
+        visual_analyzer = load_visual_analyzer(_visual_available=visual_available)
         st.success("✅ Detection system ready!")
         
         # Show system status

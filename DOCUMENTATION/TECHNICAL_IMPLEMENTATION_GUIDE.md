@@ -47,6 +47,8 @@
 - **Domain Analyzer** - Evaluates domain characteristics and reputation
 - **Content Analyzer** - Inspects page content and structure
 - **Technical Analyzer** - Examines infrastructure and security features
+- **Visual Analyzer** - AI-powered logo matching and brand verification
+- **Company Database** - Whitelist of 32M+ verified companies
 
 ---
 
@@ -68,13 +70,14 @@ Instead of a traditional black-box ML model, CipherPol uses a **transparent hybr
 ```python
 Trust Score = Base Score (70) + Weighted Component Scores
 
-Final Score = 70 + (Domain Score × 0.35) + (Content Score × 0.40) + (Technical Score × 0.25)
+Final Score = 70 + (Domain Score × 0.30) + (Content Score × 0.35) + (Technical Score × 0.20) + (Visual Score × 0.15)
 ```
 
 #### **Component Weights Explanation**
-- **Domain Analysis (35%)**: Domain characteristics are strong indicators but can be spoofed
-- **Content Analysis (40%)**: Highest weight - page content is hardest to fake convincingly  
-- **Technical Analysis (25%)**: Important but can have false positives with legitimate sites
+- **Domain Analysis (30%)**: Domain characteristics are strong indicators but can be spoofed
+- **Content Analysis (35%)**: Highest weight - page content is hardest to fake convincingly  
+- **Technical Analysis (20%)**: Important but can have false positives with legitimate sites
+- **Visual Analysis (15%)**: AI-powered brand verification using computer vision
 
 #### **Risk Level Classification**
 - **LOW (70-100)**: Safe to use with normal precautions
@@ -84,7 +87,328 @@ Final Score = 70 + (Domain Score × 0.35) + (Content Score × 0.40) + (Technical
 
 ---
 
-## 🌐 **Domain Analysis Module (35% Weight)**
+## 🎨 **Visual Analysis Module (15% Weight)**
+
+### **AI-Powered Brand Verification System**
+
+The Visual Analysis module uses computer vision and deep learning to detect brand impersonation through logo matching.
+
+#### **Core Architecture** (`modules/visual_analyzer.py`)
+```python
+class VisualAnalyzer:
+    def __init__(self, logo_database_path: str = "brand_logos", company_database=None):
+        # ResNet18 feature extraction model
+        self.model = models.resnet18(pretrained=True)
+        self.model.fc = torch.nn.Identity()  # Remove final classification layer
+        self.model.eval()
+        
+        # FAISS similarity search index
+        self.index = None
+        self.logo_metadata = {}
+        
+        # Company database integration
+        self.company_database = company_database
+```
+
+#### **1. Logo Feature Extraction**
+```python
+def _extract_features_from_image(self, image: Image.Image) -> np.ndarray:
+    """Extract 512-dimensional feature vectors using ResNet18"""
+    
+    # Image preprocessing pipeline
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),      # ResNet input size
+        transforms.ToTensor(),              # Convert to tensor
+        transforms.Normalize(               # ImageNet normalization
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
+    ])
+    
+    # Feature extraction
+    with torch.no_grad():
+        input_tensor = transform(image).unsqueeze(0)
+        features = self.model(input_tensor)           # 512-dim output
+        features = features.view(features.size(0), -1)
+        
+        # L2 normalization for cosine similarity
+        features = features / torch.norm(features, dim=1, keepdim=True)
+        
+    return features[0].numpy().astype('float32')
+```
+
+#### **2. FAISS Similarity Search**
+```python
+def _match_logo_against_database(self, logo_image: Image.Image) -> List[Dict]:
+    """Find top 5 similar logos using FAISS vector search"""
+    
+    # Extract features from query logo
+    query_features = self._extract_features_from_image(logo_image)
+    query_features = query_features.reshape(1, -1).astype('float32')
+    
+    # L2 normalization for cosine similarity
+    faiss.normalize_L2(query_features)
+    
+    # Search FAISS index for top 5 matches
+    similarities, indices = self.index.search(query_features, min(5, self.index.ntotal))
+    
+    # Return ranked results with metadata
+    results = []
+    for similarity, idx in zip(similarities[0], indices[0]):
+        if idx >= 0 and idx in self.logo_metadata:
+            metadata = self.logo_metadata[idx]
+            results.append({
+                'similarity': float(similarity),    # Cosine similarity score
+                'brand': metadata['brand'],         # Brand name
+                'domains': metadata['domains'],     # Expected domains
+                'confidence': 'High' if similarity > 0.8 else 'Medium' if similarity > 0.6 else 'Low'
+            })
+    
+    return results
+```
+
+#### **3. Brand-Domain Verification**
+```python
+def _verify_brand_match(self, domain: str, best_match: Dict) -> Dict:
+    """Verify if detected brand matches the URL domain"""
+    
+    brand = best_match['brand'].lower()
+    similarity = best_match['similarity']
+    expected_domains = best_match.get('domains', [])
+    clean_domain = domain.replace('www.', '')
+    
+    # 1. Direct domain match (highest confidence)
+    if clean_domain in expected_domains:
+        return {
+            'status': 'match',
+            'confidence': 'High' if similarity > 0.8 else 'Medium',
+            'reason': f'{brand.title()} logo matches domain {clean_domain} (similarity: {similarity:.3f})',
+            'brand': brand,
+            'similarity': similarity
+        }
+    
+    # 2. Company database verification
+    if self.company_database:
+        company_info = self.company_database.get_company_by_domain(domain)
+        if company_info:
+            company_name = company_info.get('name', '').lower()
+            
+            # Brand name appears in company name
+            if brand in company_name or company_name in brand:
+                return {
+                    'status': 'match',
+                    'confidence': 'High',
+                    'reason': f'{brand.title()} logo matches company "{company_info.get("name")}"',
+                    'company_info': company_info
+                }
+    
+    # 3. Brand mismatch detected
+    return {
+        'status': 'mismatch',
+        'confidence': 'High' if similarity > 0.8 else 'Medium',
+        'reason': f'{brand.title()} logo detected but domain is {clean_domain} (similarity: {similarity:.3f})',
+        'brand': brand,
+        'similarity': similarity,
+        'expected_domains': expected_domains
+    }
+```
+
+#### **4. Logo Detection on Webpages**
+```python
+def _find_logos_on_page(self, soup: BeautifulSoup, base_url: str) -> List[Image.Image]:
+    """Extract potential logo images from webpage"""
+    
+    # Common logo CSS selectors
+    logo_selectors = [
+        'img[alt*="logo" i]',      # Alt text contains "logo"
+        'img[src*="logo" i]',      # Source path contains "logo"
+        'img[class*="logo" i]',    # CSS class contains "logo"
+        '.logo img', '#logo img',   # Logo containers
+        'header img', '.navbar img' # Navigation areas
+    ]
+    
+    logos = []
+    found_images = set()
+    
+    # Find and download logo images
+    for selector in logo_selectors:
+        elements = soup.select(selector)
+        for img in elements:
+            src = img.get('src')
+            if src:
+                # Convert relative URLs to absolute
+                absolute_url = urljoin(base_url, src)
+                found_images.add(absolute_url)
+    
+    # Download and filter images (size, format, etc.)
+    for img_url in list(found_images)[:5]:  # Limit to 5 images
+        try:
+            response = requests.get(img_url, timeout=10)
+            if response.headers.get('content-type', '').startswith('image/'):
+                image = Image.open(io.BytesIO(response.content)).convert('RGB')
+                
+                # Filter by logo-appropriate size
+                width, height = image.size
+                if 20 <= width <= 500 and 20 <= height <= 500:
+                    logos.append(image)
+        except:
+            continue
+    
+    return logos
+```
+
+#### **5. Scoring Integration**
+```python
+# Visual analysis scoring based on brand verification
+if brand_verification['status'] == 'mismatch':
+    points = -15 if highest_similarity > 0.8 else -10  # High penalty for impersonation
+    
+elif brand_verification['status'] == 'match':
+    points = +8  # Positive signal for brand authenticity
+    
+elif brand_verification['status'] == 'uncertain':
+    points = 0   # Neutral - insufficient evidence
+```
+
+---
+
+## 🏢 **Company Database Module**
+
+### **Large-Scale Whitelist System** (`modules/company_database.py`)
+
+#### **Database Architecture**
+```python
+class CompanyDatabase:
+    def __init__(self, json_file_path: str):
+        # 32M+ company records from legitimate business database
+        self.json_file_path = json_file_path
+        self.company_lookup = {}      # Fast O(1) domain lookup
+        self.whitelist_domains = set() # Set for instant membership testing
+        
+        # SQLite caching for performance
+        self.cache_db_path = "company_cache.db"
+        self.is_loaded = False
+```
+
+#### **1. Streaming JSON Processing**
+```python
+def _load_company_data_streaming(self):
+    """Process 32M+ records using streaming to avoid memory issues"""
+    
+    processed_count = 0
+    
+    with open(self.json_file_path, 'r', encoding='utf-8') as file:
+        for line_num, line in enumerate(file, 1):
+            try:
+                # Parse each JSON record individually
+                company = json.loads(line.strip())
+                
+                # Extract and normalize domains
+                domains = self._extract_domains(company)
+                
+                for domain in domains:
+                    normalized_domain = self._normalize_domain(domain)
+                    if normalized_domain:
+                        # Store in both lookup table and whitelist set
+                        self.company_lookup[normalized_domain] = {
+                            'name': company.get('name', ''),
+                            'industry': company.get('industry', ''),
+                            'website': company.get('website', ''),
+                            'country': company.get('country', '')
+                        }
+                        self.whitelist_domains.add(normalized_domain)
+                        
+                processed_count += 1
+                
+                # Progress logging every 100K records
+                if processed_count % 100000 == 0:
+                    logger.info(f"📊 Processed {processed_count:,} companies...")
+                    
+            except json.JSONDecodeError:
+                continue  # Skip malformed records
+                
+    logger.info(f"✅ Loaded {len(self.whitelist_domains):,} domains from {processed_count:,} companies")
+```
+
+#### **2. Domain Normalization**
+```python
+def _normalize_domain(self, domain_or_url: str) -> str:
+    """Normalize domains for consistent lookup"""
+    
+    # Extract domain from URL if needed
+    if domain_or_url.startswith(('http://', 'https://')):
+        parsed = urlparse(domain_or_url)
+        domain = parsed.netloc
+    else:
+        domain = domain_or_url
+    
+    # Remove www prefix and convert to lowercase
+    domain = domain.lower().strip()
+    if domain.startswith('www.'):
+        domain = domain[4:]
+    
+    # Remove trailing dots and slashes
+    domain = domain.rstrip('./\\')
+    
+    return domain
+```
+
+#### **3. Whitelist Verification**
+```python
+def is_domain_whitelisted(self, url: str) -> Tuple[bool, Optional[Dict]]:
+    """Ultra-fast O(1) whitelist lookup"""
+    
+    normalized_domain = self._normalize_domain(url)
+    
+    if normalized_domain in self.whitelist_domains:
+        company_info = self.company_lookup.get(normalized_domain)
+        logger.info(f"✅ Domain whitelisted: {company_info.get('name', 'Unknown')}")
+        return True, company_info
+    
+    return False, None
+
+# Performance: 0.1s for whitelisted domains vs 5-15s for full analysis
+```
+
+#### **4. SQLite Caching System**
+```python
+def _cache_to_sqlite(self):
+    """Cache processed data in SQLite for faster subsequent loads"""
+    
+    conn = sqlite3.connect(self.cache_db_path)
+    cursor = conn.cursor()
+    
+    # Create optimized table structure
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS companies (
+            domain TEXT PRIMARY KEY,
+            name TEXT,
+            industry TEXT,
+            website TEXT,
+            country TEXT
+        )
+    ''')
+    
+    # Batch insert for performance
+    company_records = [
+        (domain, info['name'], info['industry'], info['website'], info['country'])
+        for domain, info in self.company_lookup.items()
+    ]
+    
+    cursor.executemany(
+        'INSERT OR REPLACE INTO companies VALUES (?, ?, ?, ?, ?)',
+        company_records
+    )
+    
+    conn.commit()
+    conn.close()
+    
+    logger.info(f"✅ Cached {len(company_records):,} companies to SQLite")
+```
+
+---
+
+## 🌐 **Domain Analysis Module (30% Weight)**
 
 ### **Core Features Analyzed**
 
@@ -751,36 +1075,50 @@ Based on manual testing with known legitimate and phishing URLs:
 ### **Main Application Files**
 ```
 📁 CipherPol Phishing Detection/
-├── 📄 simple_app.py                    # Streamlit web interface
-├── 📄 simple_launcher.py               # Thread-safe Streamlit launcher  
-├── 📄 requirements.txt                 # Python dependencies
-├── 📄 clear_streamlit_cache.py         # Cache management utility
+├── 📄 simple_app.py                    # Streamlit web interface with visual features
+├── 📄 requirements.txt                 # Core Python dependencies
+├── 📄 requirements_visual.txt          # Visual analysis dependencies (torch, faiss)
+├── 📄 VISUAL_SETUP.md                  # Visual analysis setup instructions
 │
 ├── 📁 modules/                         # Core analysis modules
-│   ├── 📄 robust_phishing_detector.py  # Main detection engine
+│   ├── 📄 robust_phishing_detector.py  # Main detection engine with visual integration
 │   ├── 📄 domain_analyzer.py           # Domain-based analysis
 │   ├── 📄 content_analyzer.py          # Content-based analysis
-│   └── 📄 technical_analyzer.py        # Technical infrastructure analysis
+│   ├── 📄 technical_analyzer.py        # Technical infrastructure analysis
+│   ├── 📄 visual_analyzer.py           # AI-powered visual brand verification
+│   └── 📄 company_database.py          # 32M+ company database with whitelist
 │
-├── 📁 diagnostics/                     # Testing and debugging tools
-│   ├── 📄 network_diagnostics.py       # Network connectivity testing
-│   ├── 📄 test_analyzer_modules.py     # Individual module testing
-│   ├── 📄 test_robust_detector.py      # Main detector testing
-│   ├── 📄 test_threading_fix.py        # Threading compatibility testing
-│   └── 📄 *.json                       # Test result files
+├── 📁 brand_logos/                     # Logo database for matching
+│   ├── 📄 google.png                   # Google logo for matching
+│   ├── 📄 microsoft.png                # Microsoft logo for matching
+│   ├── 📄 netflix.png                  # Netflix logo for matching
+│   ├── 📄 hp.png                       # HP logo for matching
+│   └── 📄 instagram.png                # Instagram logo for matching
+│
+├── 📁 Database/                        # Large datasets
+│   ├── 📄 Free Company Dataset.json    # 32M+ company records (excluded from git)
+│   └── 📁 Logo/                        # Test logos for verification
+│       ├── 📄 chrom_real_img.jpeg      # Chrome real logo
+│       ├── 📄 chrome_fake.jpeg         # Chrome fake logo
+│       ├── 📄 netflix_real.jpeg        # Netflix real logo
+│       └── 📄 netflix_fake.jpeg        # Netflix fake logo
 │
 ├── 📁 DOCUMENTATION/                   # Project documentation
-│   └── 📄 TECHNICAL_IMPLEMENTATION_GUIDE.md
+│   ├── 📄 TECHNICAL_IMPLEMENTATION_GUIDE.md  # Complete technical docs
+│   ├── 📄 PRESENTATION_GUIDE.md        # Presentation structure and demos
+│   ├── 📄 PROJECT_STRUCTURE.md         # Project overview
+│   └── 📄 MODEL_EXPLANATION.md         # AI model explanations
 │
-└── 📁 Status Files/                    # Project status and fixes
-    ├── 📄 CRASH_FIX_SUMMARY.md         # Instagram crash fix documentation
-    ├── 📄 LAUNCH_SUCCESS.md            # Streamlit startup fix documentation
-    └── 📄 CACHE_ISSUE_RESOLVED.md      # Cache and threading fix documentation
+└── 📁 diagnostics/                     # Testing and debugging tools
+    ├── 📄 network_diagnostics.py       # Network connectivity testing
+    ├── 📄 test_analyzer_modules.py     # Individual module testing
+    └── 📄 test_robust_detector.py      # Main detector testing
 ```
 
 ### **Key Dependencies**
+
+#### **Core Libraries** (`requirements.txt`)
 ```python
-# Core libraries
 streamlit>=1.28.0          # Web interface framework
 requests>=2.31.0           # HTTP requests
 beautifulsoup4>=4.12.0     # HTML parsing
@@ -799,34 +1137,78 @@ cryptography>=41.0.0       # SSL/TLS analysis
 pyopenssl>=23.0.0          # Certificate handling
 ```
 
+#### **Visual Analysis Libraries** (`requirements_visual.txt`)
+```python
+# Deep learning and computer vision
+torch>=2.4.1               # PyTorch deep learning framework
+torchvision>=0.19.1        # Computer vision models and transforms
+faiss-cpu>=1.8.0           # Facebook AI Similarity Search
+Pillow>=10.0.0             # Python Imaging Library
+
+# Dependencies automatically installed
+numpy>=1.24.0              # Numerical computing (torch dependency)
+sympy>=1.13.0              # Symbolic mathematics (torch dependency)
+networkx>=3.1              # Graph algorithms (torch dependency)
+```
+
 ---
 
 ## 🎬 **Demo and Usage Instructions**
 
 ### **Starting the System**
+
+#### **Option 1: With Visual Analysis** (Recommended)
 ```bash
 # Navigate to project directory
 cd "/Users/ronitsalvi/Documents/Ronit Personal/Projects/Hackathon 1"
 
-# Launch web interface
-python3 simple_launcher.py
+# Install visual analysis dependencies (one-time setup)
+pip3 install -r requirements_visual.txt
 
-# Open browser to: http://localhost:8507
+# Set environment variable to prevent OpenMP conflicts
+export KMP_DUPLICATE_LIB_OK=TRUE
+
+# Launch web interface with visual features
+python3 -m streamlit run simple_app.py
+
+# Open browser to: http://localhost:8501
+```
+
+#### **Option 2: Core Features Only**
+```bash
+# Navigate to project directory
+cd "/Users/ronitsalvi/Documents/Ronit Personal/Projects/Hackathon 1"
+
+# Install core dependencies only
+pip3 install -r requirements.txt
+
+# Launch basic web interface
+python3 -m streamlit run simple_app.py
+
+# Note: Visual analysis will be disabled but all other features work
 ```
 
 ### **Demo Test Cases**
 
-#### **1. Legitimate Sites (Expected: LOW RISK)**
-- `https://github.com/new` → ~84/100 - LOW RISK
-- `https://www.google.com` → ~74/100 - LOW RISK  
-- `https://www.microsoft.com` → ~78/100 - LOW RISK
+#### **1. Whitelisted Companies (Expected: INSTANT VERIFICATION)**
+- `https://www.google.com` → Trust Score: 95/100, 0.1s analysis time
+- `https://www.microsoft.com` → Trust Score: 95/100, Company Database verification
+- `https://www.netflix.com` → Trust Score: 95/100, Industry verification
 
-#### **2. Previously Crashing URL (Fixed)**
-- `https://www.instagram.com/reel/DLfVr2_i7sM/?igsh=ZHRvc3owMnlvamlz` → ~74/100 - LOW RISK
+#### **2. Visual Brand Verification (Expected: LOGO MATCHING)**
+- **Chrome Real Logo + google.com** → Brand match detected, +8 points
+- **Netflix Real Logo + netflix.com** → Brand verified, positive scoring
+- **Chrome Logo + fake domain** → Brand mismatch detected, -10 to -15 points penalty
+- **Netflix Logo + non-Netflix domain** → Impersonation warning, risk increase
 
-#### **3. Error Handling**
-- `invalid-url` → Graceful error message
-- `http://expired-domain.com` → Appropriate error handling
+#### **3. Non-Whitelisted Sites (Expected: FULL ANALYSIS)**
+- `https://github.com` → ~84/100 - LOW RISK (full 4-module analysis)
+- `https://example.com` → ~67/100 - MEDIUM RISK (technical analysis)
+
+#### **4. Error Handling and Edge Cases**
+- `invalid-url` → Graceful error message with validation
+- `http://non-existent-domain.com` → Timeout handling, partial analysis
+- Upload invalid image format → Proper error handling
 
 ### **Interpreting Results**
 
@@ -873,6 +1255,25 @@ python3 simple_launcher.py
 - **Cause**: Signal-based timeouts in multi-threaded environment
 - **Solution**: Already fixed with ThreadPoolExecutor implementation
 - **Verification**: Run `python3 diagnostics/test_threading_fix.py`
+
+#### **5. Visual Analysis Not Working**
+- **Cause**: Missing deep learning dependencies or OpenMP conflicts
+- **Solution**: Install visual libraries and set environment variable
+```bash
+pip3 install torch torchvision faiss-cpu
+export KMP_DUPLICATE_LIB_OK=TRUE
+```
+- **Verification**: Check for "✅ FAISS index built" in logs
+
+#### **6. Site Can't Be Reached**
+- **Cause**: Streamlit process not running or wrong port
+- **Solution**: Check process status and restart if needed
+```bash
+ps aux | grep streamlit                    # Check if running
+curl -I http://localhost:8501             # Test connectivity
+python3 -m streamlit run simple_app.py    # Restart if needed
+```
+- **Common Ports**: 8501 (default), 8510 (alternative)
 
 ### **Performance Tuning**
 
