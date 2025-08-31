@@ -19,8 +19,8 @@ class GeminiAnalyzer:
     
     def __init__(self, api_key: str = "AIzaSyDlwtCyXrlhQzMCAvK8QEEbh46D2AFf-xc"):
         self.api_key = api_key
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
-        self.timeout = 15  # 15 second timeout for LLM response
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+        self.timeout = 120  # 2 minute timeout for Gemini 2.5 Flash
         
     def analyze_with_llm(self, url: str, analysis_result: Dict) -> Dict:
         """
@@ -45,10 +45,16 @@ class GeminiAnalyzer:
             logger.info(f"🧠 Sending analysis to Gemini for expert assessment...")
             start_time = time.time()
             
+            # Log request payload for testing
+            self._log_request_payload(url, structured_data, prompt)
+            
             response = self._send_to_gemini(prompt)
             
             analysis_time = time.time() - start_time
             logger.info(f"✅ Gemini analysis completed in {analysis_time:.2f}s")
+            
+            # Log response payload for testing
+            self._log_response_payload(url, response)
             
             # Parse and validate response
             parsed_result = self._parse_gemini_response(response)
@@ -280,6 +286,56 @@ RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT."""
             raise Exception(f"Failed to parse Gemini JSON response: {e}")
         except Exception as e:
             raise Exception(f"Failed to validate Gemini response: {e}")
+    
+    def _log_request_payload(self, url: str, structured_data: Dict, prompt: str):
+        """Log request payload for testing and debugging"""
+        
+        import os
+        
+        # Create safe filename from URL
+        safe_url = url.replace('https://', '').replace('http://', '').replace('/', '_').replace(':', '_')
+        safe_filename = f"gemini_request_{safe_url}_{int(time.time())}.json"
+        
+        request_data = {
+            'timestamp': time.time(),
+            'url': url,
+            'structured_data': structured_data,
+            'prompt': prompt,
+            'api_endpoint': self.base_url,
+            'timeout': self.timeout
+        }
+        
+        try:
+            os.makedirs("Gemini Test Delete", exist_ok=True)
+            with open(f"Gemini Test Delete/{safe_filename}", 'w') as f:
+                json.dump(request_data, f, indent=2)
+            logger.info(f"📝 Request payload logged to: Gemini Test Delete/{safe_filename}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to log request payload: {e}")
+    
+    def _log_response_payload(self, url: str, response: Dict):
+        """Log response payload for testing and debugging"""
+        
+        import os
+        
+        # Create safe filename from URL
+        safe_url = url.replace('https://', '').replace('http://', '').replace('/', '_').replace(':', '_')
+        safe_filename = f"gemini_response_{safe_url}_{int(time.time())}.json"
+        
+        response_data = {
+            'timestamp': time.time(),
+            'url': url,
+            'raw_response': response,
+            'api_endpoint': self.base_url
+        }
+        
+        try:
+            os.makedirs("Gemini Test Delete", exist_ok=True)
+            with open(f"Gemini Test Delete/{safe_filename}", 'w') as f:
+                json.dump(response_data, f, indent=2)
+            logger.info(f"📝 Response payload logged to: Gemini Test Delete/{safe_filename}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to log response payload: {e}")
 
 def create_gemini_analyzer(api_key: str = "AIzaSyDlwtCyXrlhQzMCAvK8QEEbh46D2AFf-xc") -> Optional[GeminiAnalyzer]:
     """

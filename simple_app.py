@@ -115,8 +115,11 @@ def main():
                 # Step 1: Perform comprehensive traditional analysis
                 start_time = time.time()
                 
-                # Use the enhanced analysis method if visual analyzer is available
-                if visual_analyzer and hasattr(detector, 'analyze_url_with_visual'):
+                # Use Gemini-enhanced analysis if available, otherwise visual analysis
+                if hasattr(detector, 'analyze_url_with_gemini') and hasattr(detector, 'gemini_analyzer') and detector.gemini_analyzer:
+                    result = detector.analyze_url_with_gemini(url_input, uploaded_logo)
+                    visual_result = result.get('visual_analysis')
+                elif visual_analyzer and hasattr(detector, 'analyze_url_with_visual'):
                     result = detector.analyze_url_with_visual(url_input, uploaded_logo)
                     visual_result = result.get('visual_analysis')
                 else:
@@ -125,49 +128,18 @@ def main():
                     visual_result = None
                 
                 analysis_time = time.time() - start_time
-                progress_bar.progress(75)
-                status_text.text("✅ Traditional analysis complete!")
+                progress_bar.progress(100)
                 
-                # Display traditional results immediately
-                result_container = st.container()
-                with result_container:
-                    display_results(result, visual_result, analysis_time, detector)
+                # Check if this result includes Gemini analysis
+                has_gemini = 'gemini_analysis' in result and result['gemini_analysis']['status'] == 'success'
                 
-                # Step 2: Gemini LLM Analysis (progressive enhancement)
-                if hasattr(detector, 'gemini_analyzer') and detector.gemini_analyzer:
-                    progress_bar.progress(85)
-                    status_text.text("🧠 Getting AI validation...")
-                    
-                    # Create placeholder for Gemini results
-                    gemini_container = st.container()
-                    with gemini_container:
-                        gemini_placeholder = st.empty()
-                        with gemini_placeholder:
-                            st.info("🤖 **AI Assessment**: Analyzing results with Gemini LLM...")
-                    
-                    try:
-                        # Get Gemini analysis
-                        gemini_start = time.time()
-                        gemini_analysis = detector.gemini_analyzer.analyze_with_llm(url_input, result)
-                        gemini_time = time.time() - gemini_start
-                        
-                        progress_bar.progress(100)
-                        status_text.text("✅ Complete analysis with AI validation!")
-                        
-                        # Update placeholder with Gemini results
-                        with gemini_placeholder:
-                            display_gemini_assessment(gemini_analysis, gemini_time)
-                            
-                    except Exception as e:
-                        progress_bar.progress(100)
-                        status_text.text("✅ Analysis complete (AI validation failed)")
-                        
-                        with gemini_placeholder:
-                            st.warning(f"⚠️ **AI Assessment Unavailable**: {str(e)}")
-                            st.info("Traditional analysis results above remain valid.")
+                if has_gemini:
+                    status_text.text("✅ Complete analysis with AI validation!")
                 else:
-                    progress_bar.progress(100)
                     status_text.text("✅ Analysis complete!")
+                
+                # Display all results (traditional + Gemini if available)
+                display_results(result, visual_result, analysis_time, detector)
                 
             except Exception as e:
                 st.error(f"❌ Analysis failed: {str(e)}")
@@ -360,16 +332,22 @@ def display_results(result, visual_result, analysis_time, detector):
                 if signal.get('evidence'):
                     st.markdown(f"  *{signal['evidence']}*")
     
-    # Recommendation
-    st.subheader("💡 Recommendation")
-    recommendation = detector.get_recommendation(result)
-    
-    if risk_level == 'LOW':
-        st.success(recommendation)
-    elif risk_level == 'MEDIUM':
-        st.warning(recommendation)
+    # Gemini AI Assessment (if available)
+    gemini_analysis = result.get('gemini_analysis', {})
+    if gemini_analysis.get('status') == 'success':
+        gemini_assessment = gemini_analysis.get('gemini_assessment', {})
+        display_gemini_assessment(gemini_analysis, gemini_analysis.get('analysis_time', 0))
     else:
-        st.error(recommendation)
+        # Fallback to traditional recommendation only if Gemini unavailable
+        st.subheader("💡 Recommendation")
+        recommendation = detector.get_recommendation(result)
+        
+        if risk_level == 'LOW':
+            st.success(recommendation)
+        elif risk_level == 'MEDIUM':
+            st.warning(recommendation)
+        else:
+            st.error(recommendation)
 
 def display_visual_analysis(visual_result):
     """Display visual analysis results"""
