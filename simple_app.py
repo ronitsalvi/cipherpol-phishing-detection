@@ -18,8 +18,8 @@ st.set_page_config(
 
 def main():
     # Title and description
-    st.title("🛡️ Explainable Phishing Detection System")
-    st.markdown("**AI-powered fraud detection with transparent explanations**")
+    st.title("🛡️ Phishing Detection System")
+    st.markdown("**AI-powered fraud detection with transparent explanations - Prepared for CipherCop 2025 Hackathon**")
     
     # Check if visual libraries are available
     def check_visual_availability():
@@ -54,37 +54,6 @@ def main():
         
         detector = load_detector(_visual_available=visual_available)
         visual_analyzer = load_visual_analyzer(_visual_available=visual_available)
-        st.success("✅ Detection system ready!")
-        
-        # Show system status
-        status_parts = [f"Detector loaded at {time.strftime('%H:%M:%S')}"]
-        
-        # Visual analysis status
-        if visual_analyzer:
-            db_stats = visual_analyzer.get_database_stats()
-            status_parts.append(f"Visual analysis: {db_stats['status']} ({db_stats['logo_count']} logos)")
-        else:
-            status_parts.append("Visual analysis: disabled")
-        
-        # Company database status
-        if hasattr(detector, 'company_database') and detector.company_database:
-            try:
-                company_stats = detector.company_database.get_database_stats()
-                if company_stats.get('is_loaded'):
-                    whitelist_count = company_stats.get('whitelist_count', 0)
-                    total_companies = company_stats.get('total_companies', 0)
-                    status_parts.append(f"Company DB: {whitelist_count:,} domains loaded")
-                elif company_stats.get('loading_in_progress'):
-                    progress = company_stats.get('load_progress', 0)
-                    status_parts.append(f"Company DB: Loading {progress:.1f}%")
-                else:
-                    status_parts.append("Company DB: Not loaded")
-            except:
-                status_parts.append("Company DB: Error")
-        else:
-            status_parts.append("Company DB: Not available")
-        
-        st.info(" | ".join(status_parts))
         
     except Exception as e:
         st.error(f"❌ System initialization failed: {e}")
@@ -127,12 +96,6 @@ def main():
                 except Exception as e:
                     st.error(f"❌ Failed to process uploaded image: {e}")
             
-            # Show database status (without exposing all brands)
-            db_stats = visual_analyzer.get_database_stats()
-            if db_stats['logo_count'] > 0:
-                st.info(f"📊 Database: {db_stats['logo_count']} reference logos available for brand verification")
-            else:
-                st.warning("⚠️ No reference logos in database - brand verification limited")
     
     # Analysis button
     if st.button("🔍 Analyze URL", type="primary"):
@@ -172,21 +135,6 @@ def main():
                 st.error(f"❌ Analysis failed: {str(e)}")
                 st.info("This might be due to network issues or an unreachable URL.")
     
-    # Sample URLs section
-    st.header("🧪 Try Sample URLs")
-    col1, col2, col3 = st.columns(3)
-    
-    sample_urls = [
-        "https://www.google.com",
-        "https://github.com",
-        "https://httpbin.org"
-    ]
-    
-    for i, sample_url in enumerate(sample_urls):
-        with [col1, col2, col3][i]:
-            if st.button(f"Test: {sample_url}", key=f"sample_{i}"):
-                st.session_state.test_url = sample_url
-                st.rerun()
     
     # System information
     with st.expander("ℹ️ System Information"):
@@ -432,7 +380,7 @@ def display_visual_analysis(visual_result):
         with st.expander("🔍 Logo Matching Details", expanded=True):
             st.markdown("**Top logo matches found:**")
             
-            for match in logo_matches[:5]:  # Show top 5 matches
+            for match in logo_matches[:2]:  # Show top 2 matches
                 col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
                 
                 with col1:
