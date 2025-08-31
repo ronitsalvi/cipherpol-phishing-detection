@@ -3,6 +3,10 @@ Simple Phishing Detection Web App
 Streamlined version for local deployment
 """
 
+import os
+# Fix OpenMP conflict before any imports
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
 import streamlit as st
 import time
 from modules.robust_phishing_detector import RobustPhishingDetector
@@ -34,12 +38,24 @@ def main():
     # Initialize detector (cached for performance with visual library detection)
     @st.cache_resource
     def load_detector(_visual_available=None):
-        return RobustPhishingDetector()
+        import os
+        os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+        try:
+            return RobustPhishingDetector()
+        except Exception as e:
+            st.error(f"❌ Failed to initialize detector: {e}")
+            raise
     
     # Initialize visual analyzer (cached for performance with dependency check)
     @st.cache_resource
     def load_visual_analyzer(_visual_available=None):
-        return create_visual_analyzer()
+        import os
+        os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+        try:
+            return create_visual_analyzer()
+        except Exception as e:
+            st.warning(f"⚠️ Visual analyzer failed to load: {e}")
+            return None
     
     # Add cache refresh button for debugging
     col1, col2 = st.columns([3, 1])
@@ -112,7 +128,10 @@ def main():
             progress_bar.progress(25)
             
             try:
-                # Step 1: Perform comprehensive traditional analysis
+                # Step 1: Perform traditional analysis first
+                status_text.text("🔄 Running traditional analysis...")
+                progress_bar.progress(50)
+                
                 start_time = time.time()
                 
                 # Use Gemini-enhanced analysis if available, otherwise visual analysis
@@ -123,22 +142,20 @@ def main():
                     result = detector.analyze_url_with_visual(url_input, uploaded_logo)
                     visual_result = result.get('visual_analysis')
                 else:
-                    # Fallback to standard analysis
                     result = detector.analyze_url(url_input)
                     visual_result = None
                 
                 analysis_time = time.time() - start_time
                 progress_bar.progress(100)
                 
-                # Check if this result includes Gemini analysis
-                has_gemini = 'gemini_analysis' in result and result['gemini_analysis']['status'] == 'success'
-                
-                if has_gemini:
+                # Check if Gemini analysis was included
+                gemini_analysis = result.get('gemini_analysis', {})
+                if gemini_analysis.get('status') == 'success':
                     status_text.text("✅ Complete analysis with AI validation!")
                 else:
                     status_text.text("✅ Analysis complete!")
                 
-                # Display all results (traditional + Gemini if available)
+                # Display results
                 display_results(result, visual_result, analysis_time, detector)
                 
             except Exception as e:
@@ -207,65 +224,75 @@ def display_results(result, visual_result, analysis_time, detector):
         st.markdown(f"**Website:** {whitelist_info.get('website', 'Unknown')}")
         st.info("🚀 **Fast Track Analysis**: This domain is in our verified company database. Comprehensive phishing analysis was bypassed.")
     
-    # Main results display
-    col1, col2, col3 = st.columns([2, 1, 1])
+    # Display AI Expert Assessment (Primary)
+    gemini_analysis = result.get('gemini_analysis', {})
+    if gemini_analysis.get('status') == 'success':
+        display_gemini_assessment(gemini_analysis, gemini_analysis.get('analysis_time', 0))
     
-    with col1:
-        # Risk level with color coding
+    # Always show Traditional Analysis in accordion (Secondary)
+    with st.expander("📊 Traditional Analysis Details", expanded=False):
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.metric("Confidence", f"{confidence}%")
+        
+        with col2:
+            st.metric("Analysis Time", f"{analysis_time:.1f}s")
+        
+        # Component scores
+        st.markdown("**Component Breakdown:**")
+        component_scores = result['component_scores']
+        
+        # Show partial analysis warning if applicable
+        analysis_status = result.get('analysis_status', {})
+        if analysis_status.get('partial_analysis', False):
+            successful = analysis_status.get('successful_modules', 0)
+            total = analysis_status.get('total_modules', 3)
+            st.warning(f"⚠️ Partial Analysis: {successful}/{total} modules completed successfully. Some features may be unavailable.")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            domain_score = component_scores['domain']
+            domain_display = f"{domain_score}/100" if domain_score != 'Error' else "Error"
+            st.metric("Domain Analysis", domain_display)
+        with col2:
+            content_score = component_scores['content']
+            content_display = f"{content_score}/100" if content_score != 'Error' else "Error"
+            st.metric("Content Analysis", content_display)
+        with col3:
+            technical_score = component_scores['technical']
+            technical_display = f"{technical_score}/100" if technical_score != 'Error' else "Error"
+            st.metric("Technical Analysis", technical_display)
+        with col4:
+            visual_score = component_scores.get('visual', 'N/A')
+            visual_display = f"{visual_score}/100" if visual_score not in ['Error', 'N/A'] else visual_score
+            st.metric("Visual Analysis", visual_display)
+        
+        # Show detailed explanations inside accordion
+        _display_traditional_explanations(explanations, visual_result)
+    
+    # Show traditional recommendation only if no AI available
+    if gemini_analysis.get('status') != 'success':
+        st.subheader("💡 Recommendation")
+        recommendation = detector.get_recommendation(result)
+        
         if risk_level == 'LOW':
-            st.success(f"🟢 Trust Score: {trust_score}/100 - LOW RISK")
+            st.success(recommendation)
         elif risk_level == 'MEDIUM':
-            st.warning(f"🟡 Trust Score: {trust_score}/100 - MEDIUM RISK")
-        elif risk_level == 'HIGH':
-            st.error(f"🔴 Trust Score: {trust_score}/100 - HIGH RISK")
+            st.warning(recommendation)
         else:
-            st.error(f"🚨 Trust Score: {trust_score}/100 - CRITICAL RISK")
-    
-    with col2:
-        st.metric("Confidence", f"{confidence}%")
-    
-    with col3:
-        st.metric("Analysis Time", f"{analysis_time:.1f}s")
-    
-    # Component scores
-    st.subheader("📊 Component Breakdown")
-    component_scores = result['component_scores']
-    
-    # Show partial analysis warning if applicable
-    analysis_status = result.get('analysis_status', {})
-    if analysis_status.get('partial_analysis', False):
-        successful = analysis_status.get('successful_modules', 0)
-        total = analysis_status.get('total_modules', 3)
-        st.warning(f"⚠️ Partial Analysis: {successful}/{total} modules completed successfully. Some features may be unavailable.")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        domain_score = component_scores['domain']
-        domain_display = f"{domain_score}/100" if domain_score != 'Error' else "Error"
-        st.metric("Domain Analysis", domain_display)
-    with col2:
-        content_score = component_scores['content']
-        content_display = f"{content_score}/100" if content_score != 'Error' else "Error"
-        st.metric("Content Analysis", content_display)
-    with col3:
-        technical_score = component_scores['technical']
-        technical_display = f"{technical_score}/100" if technical_score != 'Error' else "Error"
-        st.metric("Technical Analysis", technical_display)
-    with col4:
-        visual_score = component_scores.get('visual', 'N/A')
-        visual_display = f"{visual_score}/100" if visual_score not in ['Error', 'N/A'] else visual_score
-        st.metric("Visual Analysis", visual_display)
-    
-    # Detailed explanations
-    st.subheader("📋 Detailed Analysis")
+            st.error(recommendation)
+
+def _display_traditional_explanations(explanations, visual_result):
+    """Display traditional analysis explanations"""
     
     # Handle error case
     if explanations.get('error'):
         st.error(f"❌ Analysis Error: {explanations['error']}")
         if explanations.get('details'):
-            with st.expander("Error Details"):
-                for detail in explanations['details']:
-                    st.text(f"• {detail}")
+            st.markdown("**Error Details:**")
+            for detail in explanations['details']:
+                st.text(f"• {detail}")
         return
     
     # Risk factors
@@ -325,29 +352,12 @@ def display_results(result, visual_result, analysis_time, detector):
     
     # Show neutral signals (errors/warnings)
     if explanations.get('neutral_signals'):
-        with st.expander("ℹ️ Analysis Notes"):
-            for signal in explanations['neutral_signals']:
-                module = signal.get('module', 'Unknown')
-                st.markdown(f"- **{signal['description']}** *[{module}]*")
-                if signal.get('evidence'):
-                    st.markdown(f"  *{signal['evidence']}*")
-    
-    # Gemini AI Assessment (if available)
-    gemini_analysis = result.get('gemini_analysis', {})
-    if gemini_analysis.get('status') == 'success':
-        gemini_assessment = gemini_analysis.get('gemini_assessment', {})
-        display_gemini_assessment(gemini_analysis, gemini_analysis.get('analysis_time', 0))
-    else:
-        # Fallback to traditional recommendation only if Gemini unavailable
-        st.subheader("💡 Recommendation")
-        recommendation = detector.get_recommendation(result)
-        
-        if risk_level == 'LOW':
-            st.success(recommendation)
-        elif risk_level == 'MEDIUM':
-            st.warning(recommendation)
-        else:
-            st.error(recommendation)
+        st.markdown("#### ℹ️ Analysis Notes:")
+        for signal in explanations['neutral_signals']:
+            module = signal.get('module', 'Unknown')
+            st.markdown(f"- **{signal['description']}** *[{module}]*")
+            if signal.get('evidence'):
+                st.markdown(f"  *{signal['evidence']}*")
 
 def display_visual_analysis(visual_result):
     """Display visual analysis results"""
@@ -393,22 +403,22 @@ def display_visual_analysis(visual_result):
     # Logo matching results
     logo_matches = visual_result.get('logo_matches', [])
     if logo_matches:
-        with st.expander("🔍 Logo Matching Details", expanded=True):
-            st.markdown("**Top logo matches found:**")
+        st.markdown("#### 🔍 Logo Matching Details:")
+        st.markdown("**Top logo matches found:**")
+        
+        for match in logo_matches[:2]:  # Show top 2 matches
+            col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
             
-            for match in logo_matches[:2]:  # Show top 2 matches
-                col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
-                
-                with col1:
-                    st.markdown(f"**{match['brand'].title()}**")
-                with col2:
-                    st.metric("Similarity", f"{match['similarity']:.3f}")
-                with col3:
-                    st.markdown(f"*{match['confidence']}*")
-                with col4:
-                    domains = match.get('domains', [])
-                    if domains:
-                        st.markdown(f"*Expected: {', '.join(domains[:2])}*")
+            with col1:
+                st.markdown(f"**{match['brand'].title()}**")
+            with col2:
+                st.metric("Similarity", f"{match['similarity']:.3f}")
+            with col3:
+                st.markdown(f"*{match['confidence']}*")
+            with col4:
+                domains = match.get('domains', [])
+                if domains:
+                    st.markdown(f"*Expected: {', '.join(domains[:2])}*")
     
     # Visual analysis explanations (if any)
     visual_explanations = visual_result.get('explanations', [])
@@ -429,7 +439,7 @@ def display_visual_analysis(visual_result):
 def display_gemini_assessment(gemini_result, analysis_time):
     """Display Gemini LLM assessment results"""
     
-    st.markdown("### 🤖 AI Expert Assessment")
+    st.markdown("## 🤖 AI Expert Assessment")
     
     if gemini_result['status'] != 'success':
         st.warning("⚠️ AI validation unavailable - using traditional analysis only")
